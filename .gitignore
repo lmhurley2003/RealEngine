@@ -1,6 +1,7 @@
 *.exe
 *.obj
 *.pdb
+*.spv
 Debug/
 x64/
 RealEngine.vcxproj
