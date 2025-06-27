@@ -1,0 +1,8 @@
+*.exe
+*.obj
+*.pdb
+Debug/
+x64/
+RealEngine.vcxproj
+RealEngine.vcxproj.filters
+RealEngine.vcxproj.user
