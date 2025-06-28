@@ -38,7 +38,8 @@ private:
     const bool enableValidationLayers = true;
 #endif
     const std::vector<const char*> validationLayers = {
-      "VK_LAYER_KHRONOS_validation"
+      "VK_LAYER_KHRONOS_validation",
+      "VK_LAYER_LUNARG_monitor"
     };
     const std::vector<const char*> deviceExtensions = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME
@@ -109,7 +110,12 @@ private:
     std::vector<VkFence> inFlightFences;
     uint32_t flightFrame = 0;
     bool framebufferResized = false;
-    
+
+    VkBuffer vertexBuffer;
+    VkDeviceMemory vertexBufferMemory;
+    VkBuffer indexBuffer;
+    VkDeviceMemory indexBufferMemory;
+ 
     void initWindow();
     static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
         VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -176,6 +182,11 @@ private:
     void createGraphicsPipeline();
     void createFramebuffers();
     void createCommandPools();
+    uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+    void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
+    void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
+    void createVertexBuffer();
+    void createIndexBuffer();
     void createCommandBuffers();
     void createSynchObjects();
     void initProgram();

@@ -2,6 +2,7 @@
 #include "scene.hpp"
 #include <vector>
 #include "commandArgs.hpp"
+#include <vulkan/vulkan.h>
 //A basis for info to hook into the existing vulkan skeleton to define what is this application actually doind
 //Hopefully should make a good pipeline for swapping in various demos (ie shadow map demonstration, cascading shado maps, 
 // procedural terrain, eg)
@@ -48,6 +49,15 @@ struct Program {
 		parameters(_p), scenes(_scs), currentScene(_s), stages(_sts) {};
 
 	Program() : parameters(ParamMap{}), scenes({}), currentScene({}), stages({}) {};
+
+	struct Vertex;
+	static void vertexBufferSize(uint32_t* numElements, uint32_t* elementSize);
+	static VkVertexInputBindingDescription getVertexBindingDescription();
+	static std::vector<VkVertexInputAttributeDescription> getVertexAttributeDescriptions();
+	static std::vector<Vertex> vertices;
+	struct Index;
+	static void indexBufferSize(uint32_t* numElements, uint32_t* elemntSize);
+	static std::vector<Index> indices;
 };
 
 Program curProgram();
