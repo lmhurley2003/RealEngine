@@ -58,6 +58,11 @@ struct Program {
 	struct Index;
 	static void indexBufferSize(uint32_t* numElements, uint32_t* elemntSize);
 	static std::vector<Index> indices;
+
+	struct UniformBufferObject;
+	static VkShaderStageFlags uniformBufferObjectStages();
+	static uint32_t uniformBufferObjectSize();
+	static void updateUniformBuffer(std::vector<void*>& uniformBuffersMapped, uint32_t image, float time, uint32_t width, uint32_t height);
 };
 
 Program curProgram();

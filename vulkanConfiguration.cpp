@@ -6,6 +6,7 @@
 #include <unordered_set>
 #include <cassert> //(void)0 if NDEBUG defined
 #include <algorithm>
+#include <chrono>
 
 #include "vulkanConfiguration.hpp"
 #include "utils.hpp"
@@ -629,6 +630,24 @@ VkShaderModule App::createShaderModule(const std::vector<char>& code) {
     return shaderModule;
 }
 
+void App::createDescriptorSetLayout() {
+    VkDescriptorSetLayoutBinding uboLayoutBinding{};
+    uboLayoutBinding.binding = 0;
+    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    uboLayoutBinding.descriptorCount = 1;
+    uboLayoutBinding.stageFlags = Program::uniformBufferObjectStages();
+    uboLayoutBinding.pImmutableSamplers = nullptr;
+    
+    VkDescriptorSetLayoutCreateInfo layoutInfo{};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = 1;
+    layoutInfo.pBindings = &uboLayoutBinding;
+
+    if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create descriptor set layout!");
+    }
+
+};
 
 //TODO TODO use dynamic rendering instead of renderpass system
 void App::createGraphicsPipeline() {
@@ -695,23 +714,13 @@ void App::createGraphicsPipeline() {
     colorBlending.attachmentCount = 1;
     colorBlending.pAttachments = &colorBlendAttatchment;
 
-    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 0;
-    pipelineLayoutInfo.pSetLayouts = nullptr;
-    pipelineLayoutInfo.pSetLayouts = nullptr;
-    pipelineLayoutInfo.pushConstantRangeCount = 0;
-    pipelineLayoutInfo.pPushConstantRanges = nullptr;
-
-    if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create pipeline layout!");
-    }
 
     //main loop
     static bool derivePipelines = std::get<0>(program.parameters["derive-pipelines"]);
     std::vector<VkGraphicsPipelineCreateInfo> pipelineInfos{};
     pipelineInfos.reserve(program.stages.size());
     std::vector<VkPipelineShaderStageCreateInfo> stages;
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
     VkPipelineRasterizationStateCreateInfo rasterizer{};
@@ -734,6 +743,16 @@ void App::createGraphicsPipeline() {
             shaderStageInfo.pName = "main";
 
             stages.emplace_back(shaderStageInfo);
+        }
+        //pipeline layout info
+        pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        pipelineLayoutInfo.setLayoutCount = (stage.type == MAIN_RENDER) ? 1 : 0;
+        pipelineLayoutInfo.pSetLayouts = (stage.type == MAIN_RENDER) ? &descriptorSetLayout : nullptr;
+        pipelineLayoutInfo.pushConstantRangeCount = 0;
+        pipelineLayoutInfo.pPushConstantRanges = nullptr;
+
+        if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create pipeline layout!");
         }
 
         //vertexInput
@@ -1005,6 +1024,70 @@ void App::createIndexBuffer() {
     vkFreeMemory(device, stagingBufferMemory, nullptr);
 }
 
+void App::createUniformBuffers() {
+    VkDeviceSize bufferSize = Program::uniformBufferObjectSize();
+
+    uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+    uniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
+    uniformBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT);
+
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffers[i], uniformBuffersMemory[i]);
+        vkMapMemory(device, uniformBuffersMemory[i], 0, bufferSize, 0, &uniformBuffersMapped[i]);
+    }
+}
+
+void App::createDescriptorPool() {
+    VkDescriptorPoolSize poolSize{};
+    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSize.descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+
+    VkDescriptorPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = 1;
+    poolInfo.pPoolSizes = &poolSize;
+    //TODO if we modify / free descriptor pool, need VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT
+    poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+
+    if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create descriptor pool!");
+    }
+}
+
+void App::createDescriptorSets() {
+    std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, descriptorSetLayout);
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = descriptorPool;
+    allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+    allocInfo.pSetLayouts = layouts.data();
+
+    descriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
+    if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to allocate descriptor sets!");
+    }
+
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        VkDescriptorBufferInfo bufferInfo{};
+        bufferInfo.buffer = uniformBuffers[i];
+        bufferInfo.offset = 0;
+        bufferInfo.range = Program::uniformBufferObjectSize();
+
+        VkWriteDescriptorSet descriptorWrite{};
+        descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrite.dstSet = descriptorSets[i];
+        descriptorWrite.dstBinding = 0;
+        descriptorWrite.dstArrayElement = 0;
+        descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrite.descriptorCount = 1;
+        descriptorWrite.pBufferInfo = &bufferInfo;
+        descriptorWrite.pImageInfo = nullptr;
+        descriptorWrite.pTexelBufferView = nullptr;
+
+        vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
+    }
+}
+
 /*
 * Semaphores : used for queue-queue synchronization, start as unsignaled,
 * Queue submit can signal an unsignaled semaphore and wait for a semaphore to be signaled
@@ -1039,11 +1122,15 @@ void App::createSynchObjects() {
 
 void App::initProgram() {
     createRenderPass();
+    createDescriptorSetLayout();
     createGraphicsPipeline();
     createFramebuffers();
     createCommandPools();
     createVertexBuffer();
     createIndexBuffer();
+    createUniformBuffers();
+    createDescriptorPool();
+    createDescriptorSets();
     createCommandBuffers();
     createSynchObjects();
 }
@@ -1124,13 +1211,21 @@ void App::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
   
+    if (Program::uniformBufferObjectSize() > 0) {
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[flightFrame], 0, nullptr);
+    }
     if (numIndices > 0) {
         vkCmdDrawIndexed(commandBuffer, numIndices, 1, 0, 0, 0);
     }
-    else {
+    else{
         uint32_t numVertices, vertexSize = 0;
         Program::vertexBufferSize(&numVertices, &vertexSize);
-        vkCmdDraw(commandBuffer, numVertices, 1, 0, 0);
+        if (numVertices > 0) {
+            vkCmdDraw(commandBuffer, numVertices, 1, 0, 0);
+        }
+        else {
+            vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+        }
     }
 
     vkCmdEndRenderPass(commandBuffer);
@@ -1139,6 +1234,7 @@ void App::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex
         throw std::runtime_error("Failed to record command buffer!");
     }
 }
+
 
 /* At a high level (from https://vulkan-tutorial.com/en/Drawing_a_triangle/Drawing/Rendering_and_presentation)
 - Wait for the previous frame to finish
@@ -1165,6 +1261,14 @@ void App::drawFrame() {
 
     /*static*/ VkCommandBuffer commandBuffer = commandBuffers[GRAPHICS_QUEUE][flightFrame];
     vkResetCommandBuffer(commandBuffer, 0);
+    
+    //update scene behavior
+    static auto startTime = std::chrono::high_resolution_clock::now();
+
+    auto currentTime = std::chrono::high_resolution_clock::now();
+    float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+    Program::updateUniformBuffer(uniformBuffersMapped, flightFrame, time, swapChainExtent.width, swapChainExtent.height);
+
 
     recordCommandBuffer(commandBuffer, imageIndex);
 
@@ -1229,7 +1333,16 @@ void App::cleanupSwapChain() {
 }
 
 void App::cleanup() {
-    cleanupSwapChain(); 
+    cleanupSwapChain();
+
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        vkDestroyBuffer(device, uniformBuffers[i], nullptr);
+        vkFreeMemory(device, uniformBuffersMemory[i], nullptr);
+    }
+
+    vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+
+    vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 
     vkDestroyBuffer(device, indexBuffer, nullptr);
     vkFreeMemory(device, indexBufferMemory, nullptr);

@@ -5,6 +5,7 @@
 //#define GLFW_EXPOSE_NATIVE_WIN32
 //#include <GLFW/glfw3native.h>
 #include <vulkan/vk_enum_string_helper.h>
+
 #include <vector>
 #include <unordered_map>
 #include <set>
@@ -88,6 +89,7 @@ private:
     std::vector<VkImage> swapChainImages;
     std::vector<VkImageView> swapChainImageViews;
 
+    VkDescriptorSetLayout descriptorSetLayout;
     VkPipelineLayout pipelineLayout; //push shader uniform definitions
     VkRenderPass renderPass;
     std::unordered_map<PipelineStageT, VkPipeline> pipelines;
@@ -115,6 +117,13 @@ private:
     VkDeviceMemory vertexBufferMemory;
     VkBuffer indexBuffer;
     VkDeviceMemory indexBufferMemory;
+
+    std::vector<VkBuffer> uniformBuffers;
+    std::vector<VkDeviceMemory> uniformBuffersMemory;
+    std::vector<void*> uniformBuffersMapped;
+
+    VkDescriptorPool descriptorPool;
+    std::vector<VkDescriptorSet> descriptorSets;
  
     void initWindow();
     static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
@@ -179,6 +188,7 @@ private:
 
     void createRenderPass();
     VkShaderModule createShaderModule(const std::vector<char>& code);
+    void createDescriptorSetLayout();
     void createGraphicsPipeline();
     void createFramebuffers();
     void createCommandPools();
@@ -187,6 +197,9 @@ private:
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
     void createVertexBuffer();
     void createIndexBuffer();
+    void createUniformBuffers();
+    void createDescriptorPool();
+    void createDescriptorSets();
     void createCommandBuffers();
     void createSynchObjects();
     void initProgram();
