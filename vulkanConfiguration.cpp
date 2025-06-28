@@ -104,12 +104,16 @@ void App::createInstance() {
     createInfo.ppEnabledExtensionNames = extensions.data();
 
     VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
+    const char* fpsLayer = "VK_LAYER_LUNARG_monitor";
     if (enableValidationLayers) {
         createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
         createInfo.ppEnabledLayerNames = validationLayers.data();
 
         populateDebugMessengerCreateInfo(debugCreateInfo);
         createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debugCreateInfo;
+    } else if (std::get<0>(program.parameters["force-show-fps"])) {
+        createInfo.enabledLayerCount = 1;
+        createInfo.ppEnabledLayerNames = &fpsLayer;
     }
     else {
         createInfo.enabledLayerCount = 0;

@@ -24,7 +24,8 @@ ParamMap parameters = {
 	{"debug-level", static_cast<int>(0)},
 	{"separate-queue-families", false},
 	{"print-debug-output", false},
-	{"swapchain-mode", "mailbox"}
+	{"swapchain-mode", "mailbox"},
+	{"force-show-fps", false}
 };
 
 

@@ -27,6 +27,7 @@ static const std::string helpMessage = " To run application, arguments must form
        immediate  \n \
        fifo-relaxed \n \
        mailbox \n \
+[] --force-show-fps : show fps counter in window even if not in debug mode \n \
 [] --multisampling {s} : s is int number of samples to do antialiasing in rasterization stage, one of \n \
     1 (DEFAULT), 2, 4, 8, 16, 32, 64 \n \
 [] --headless {events}, path to UTF-8-encoded text file to perform application in headless mode.\n \
