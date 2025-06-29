@@ -7,3 +7,6 @@ x64/
 RealEngine.vcxproj
 RealEngine.vcxproj.filters
 RealEngine.vcxproj.user
+shaders/compiled
+shaders/embedded
+source/shadersEmbedded.cpp

@@ -53,7 +53,7 @@ Refactorable and multipurpose realtime 3D engine made in Vulkan
         -Could this work with occlusion culling ? Maybe occlusion culling would be faster 
          CPU-side since we probably have a small, fixed-size number of screen-space aligned occluders
 - [ ] Maybe release each seperate "program" on Itch.io, combine in final game with meta layer
-    - If I want to run games in browser, proabbly need abstraction to use different grpahics APIs ie WebGL
+    - If I want to run games in browser, proabably need abstraction to use different grpahics APIs ie WebGL
 - [ ] Probably should end up pre redering SOME stuff (ie pinball background), but want to prerender as little as \
  possible just from a stand point of creative extensibility (subverting medium expectations), like with the \
 "prerendered" background that ends up moving
@@ -74,7 +74,7 @@ Animal Well too much but idk maybe I have to get rid of this aversion to copying
  to order windows ? 
 - [ ] Probably move mainLoop out of App class into general Game class ?
 - [ ] deferred deferred rendering is probably best since lots of visualys will be occluded by windows
-- [ ] Should ligghts be in seperate descriptor set per program ? or use push constants to have an offset+size approach ?
+- [ ] Should lights be in seperate descriptor set per program ? or use push constants to have an offset+size approach ?
     -On second thought almost certainly better to do offset+size approach since the "set=n" directive is constant, would need
      separate shaders per window
     -But maybe have seperate sets for static vs dynamic lights ?
@@ -85,7 +85,7 @@ Animal Well too much but idk maybe I have to get rid of this aversion to copying
 - Sort of want everything to have an "opening loading animation", but need to figure out whether that \
 animation will actually be loading things in background or is just aesthetic 
     -  Should that be a puzzle ? doing something as a background "loads" ? 
-- Maybe part of puzzle structure is making "schortcuts" of program-contextual object onto desktop
+- Maybe part of puzzle structure is making "shortcuts" of program-contextual object onto desktop
      - IE create short cut for "locked chest" from email and short cut for "crow bar" from pinball, drag \
       on icon onto another to open -- similar to combining things in point-and-click games
      - Minor idea, but maybe icons also have normal maps to react to lighting in background
@@ -93,13 +93,17 @@ animation will actually be loading things in background or is just aesthetic
 - Purposefully anachronistic, with both 
 - Have moment where grpahics "breaksdown", ie first shuttling shadow mapping from varince to normal to none,
 lowering multisampling samples, in general purposfilly alaisging stuff
-- Maybe have icons interact with desktop background ? ie
+- Maybe have icons interact with desktop background ?
+- Aesthetics-wise, probably would feel more realistic to have some programs have different resolutions than main
+program resolution. 
 
 # Pinball
 - [ ] Likely a good start for a proof on concept
 - [ ] Space cadet has multiple lights, likely prerenderered, can I get away with using just bloom instead of
 Doom-esque forward+ light rendering ?
 - [ ] Maybe use walk mesh to describe bounds, instead of creating full physics engine
+- [ ] Drag pinball paddles + ball into desktop, use ball to "break" pinball icon
+    - Make breakable objects in pinball game with distinct material to make puzzle concrete and "gettable"
 
 
 # Resources to look at
