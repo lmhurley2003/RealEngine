@@ -724,7 +724,7 @@ void App::createGraphicsPipeline() {
     //main loop
     static bool derivePipelines = std::get<0>(program.parameters["derive-pipelines"]);
     std::vector<VkGraphicsPipelineCreateInfo> pipelineInfos{};
-    pipelineInfos.reserve(program.stages.size());
+    pipelineInfos.reserve(program.shaderStages.size());
     std::vector<VkPipelineShaderStageCreateInfo> stages;
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
@@ -735,7 +735,7 @@ void App::createGraphicsPipeline() {
     std::vector<VkVertexInputAttributeDescription> attributeDescriptions{};
 
     uint32_t i = 0;
-    for (auto& stage : program.stages) {
+    for (auto& stage : program.shaderStages) {
         uint32_t stageIdx = i;
         for (const auto& shader : stage.shaderInfos) {
             VkPipelineShaderStageCreateInfo shaderStageInfo{};
@@ -826,18 +826,18 @@ void App::createGraphicsPipeline() {
     }
 
     if (DEBUG && DEBUG_LEVEL >= MODERATE) {
-        assert(pipelineInfos.size() == program.stages.size());
+        assert(pipelineInfos.size() == program.shaderStages.size());
         assert(pipelineInfos.size() == 0 || !derivePipelines || (pipelineInfos[0].flags & VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT));
     }
 
     std::vector<VkPipeline> pipelinesList;
-    pipelinesList.resize(program.stages.size());
+    pipelinesList.resize(program.shaderStages.size());
     if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, static_cast<uint32_t>(pipelineInfos.size()), pipelineInfos.data(), nullptr, pipelinesList.data()) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create graphics pipelines!");
     }
 
     for (size_t i = 0; i < pipelinesList.size(); i++) {
-        pipelines.insert(std::make_pair(program.stages[i].type, pipelinesList[i]));
+        pipelines.insert(std::make_pair(program.shaderStages[i].type, pipelinesList[i]));
     }
 
     for (auto& module : shaderModules) {

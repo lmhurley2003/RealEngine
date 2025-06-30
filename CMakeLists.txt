@@ -43,7 +43,8 @@ link_libraries (
     "C:\\Users\\lucas\\OneDrive\\Documents\\Visual Studio 2022\\Libraries\\glfw-3.3.9.bin.WIN64\\lib-vc2022\\glfw3.lib"
 )
 
-create_resources(shaders/compiled source/embeddedShaders.cpp)
+#comment out, takes long time
+#create_resources(shaders/compiled source/embeddedShaders.cpp)
 
 set(real_headers
     headers/commandArgs.hpp

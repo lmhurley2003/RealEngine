@@ -96,6 +96,8 @@ lowering multisampling samples, in general purposfilly alaisging stuff
 - Maybe have icons interact with desktop background ?
 - Aesthetics-wise, probably would feel more realistic to have some programs have different resolutions than main
 program resolution. 
+- Add a lot of small interactive touches. Like think about Pajama Sam, there's not a lot of complex gamepley yet the
+players are propelled by small moments of interactivty and humor
 
 # Pinball
 - [ ] Likely a good start for a proof on concept
