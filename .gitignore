@@ -4,6 +4,7 @@
 *.spv
 Debug/
 x64/
+build/
 RealEngine.vcxproj
 RealEngine.vcxproj.filters
 RealEngine.vcxproj.user

@@ -1,5 +1,5 @@
 
-#include "vulkanConfiguration.hpp"
+#include "vulkanCore.hpp"
 #include "commandArgs.hpp"
 
 #include <iostream>
@@ -39,7 +39,6 @@ static const std::string helpMessage = " To run application, arguments must form
 
 
 int main(int argc, char* argv[]) {
-
     try {
         parseCommandLine(argc, argv);
     } catch (const std::exception& e){

@@ -12,7 +12,7 @@
 #include <iostream>
 #include <optional>
 
-#include "program.hpp"
+#include "config.hpp"
 
 class App {
 public:
@@ -28,7 +28,6 @@ public:
     int BASE_HEIGHT;
     int WIDTH;
     int HEIGHT;
-    Program program;
 
     void run();
 
@@ -187,15 +186,21 @@ private:
     void initVulkan();
 
     void createRenderPass();
-    //VkShaderModule createShaderModule(const std::vector<char>& code);
     VkShaderModule createShaderModule(uint32_t i);
     void createDescriptorSetLayout();
     void createGraphicsPipeline();
     void createFramebuffers();
     void createCommandPools();
+    
+    //memory functions defined in vulkanMemory.cpp
+    void initializeMemorySystem();
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
     void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
+    void mapMemory(VkDevice device, VkDeviceMemory deviceMemory, VkDeviceSize offset, VkDeviceSize size, VkMemoryMapFlags flags, void** ppData);
+    void freeBuffer(VkBuffer buffer, VkDeviceMemory);
+    void freeMemorySystem();
+
     void createVertexBuffer();
     void createIndexBuffer();
     void createUniformBuffers();

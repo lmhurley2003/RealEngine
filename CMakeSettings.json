@@ -10,6 +10,32 @@
             "cmakeCommandArgs": "",
             "buildCommandArgs": "",
             "ctestCommandArgs": ""
+        },
+        {
+            "name": "x64-Debug-Clang",
+            "generator": "Ninja",
+            "configurationType": "Debug",
+            "inheritEnvironments": [ "clang_cl_x64" ],
+            "buildRoot": "${projectDir}\\out\\build\\${name}",
+            "installRoot": "${projectDir}\\out\\install\\${name}",
+            "cmakeCommandArgs": "",
+            "buildCommandArgs": "",
+            "ctestCommandArgs": ""
+        },
+        {
+            "name": "BuildShaders",
+            "generator": "Ninja",
+            "buildRoot": "${projectDir}\\build\\${name}",
+            "installRoot": "${projectDir}\\install\\${name}",
+            "cmakeCommandArgs": "",
+            "buildCommandArgs": "",
+            "variables": [
+                {
+                    "name": "BUILD_SHADERS",
+                    "value": "ON",
+                    "type": "BOOL"
+                }
+            ]
         }
     ]
 }

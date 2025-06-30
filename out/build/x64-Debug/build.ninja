@@ -57,7 +57,7 @@ build CMakeFiles\real_core.dir\source\commandArgs.cpp.obj: CXX_COMPILER__real_co
   TARGET_COMPILE_PDB = CMakeFiles\real_core.dir\real_core.pdb
   TARGET_PDB = real_core.pdb
 
-build CMakeFiles\real_core.dir\source\program.cpp.obj: CXX_COMPILER__real_core_unscanned_Debug C$:\Users\lucas\source\repos\RealEngine\RealEngine\source\program.cpp || cmake_object_order_depends_target_real_core
+build CMakeFiles\real_core.dir\source\config.cpp.obj: CXX_COMPILER__real_core_unscanned_Debug C$:\Users\lucas\source\repos\RealEngine\RealEngine\source\config.cpp || cmake_object_order_depends_target_real_core
   FLAGS = /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MDd /Zi /Ob0 /Od /RTC1 -std:c++20
   INCLUDES = -IC:\Users\lucas\source\repos\RealEngine\RealEngine\source -IC:\Users\lucas\source\repos\RealEngine\RealEngine\headers -IC:\Users\lucas\source\repos\RealEngine\RealEngine\shaders -IC:\Users\lucas\source\repos\RealEngine\RealEngine\shaders\embedded -I"C:\Users\lucas\OneDrive\Documents\Visual Studio 2022\Libraries\glm" -I"C:\Users\lucas\OneDrive\Documents\Visual Studio 2022\Libraries\glfw-3.3.9.bin.WIN64\Include" -IC:\VulkanSDK\1.4.313.2\Include
   OBJECT_DIR = CMakeFiles\real_core.dir
@@ -81,7 +81,23 @@ build CMakeFiles\real_core.dir\source\utils.cpp.obj: CXX_COMPILER__real_core_uns
   TARGET_COMPILE_PDB = CMakeFiles\real_core.dir\real_core.pdb
   TARGET_PDB = real_core.pdb
 
-build CMakeFiles\real_core.dir\source\vulkanConfiguration.cpp.obj: CXX_COMPILER__real_core_unscanned_Debug C$:\Users\lucas\source\repos\RealEngine\RealEngine\source\vulkanConfiguration.cpp || cmake_object_order_depends_target_real_core
+build CMakeFiles\real_core.dir\source\vertexIndex.cpp.obj: CXX_COMPILER__real_core_unscanned_Debug C$:\Users\lucas\source\repos\RealEngine\RealEngine\source\vertexIndex.cpp || cmake_object_order_depends_target_real_core
+  FLAGS = /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MDd /Zi /Ob0 /Od /RTC1 -std:c++20
+  INCLUDES = -IC:\Users\lucas\source\repos\RealEngine\RealEngine\source -IC:\Users\lucas\source\repos\RealEngine\RealEngine\headers -IC:\Users\lucas\source\repos\RealEngine\RealEngine\shaders -IC:\Users\lucas\source\repos\RealEngine\RealEngine\shaders\embedded -I"C:\Users\lucas\OneDrive\Documents\Visual Studio 2022\Libraries\glm" -I"C:\Users\lucas\OneDrive\Documents\Visual Studio 2022\Libraries\glfw-3.3.9.bin.WIN64\Include" -IC:\VulkanSDK\1.4.313.2\Include
+  OBJECT_DIR = CMakeFiles\real_core.dir
+  OBJECT_FILE_DIR = CMakeFiles\real_core.dir\source
+  TARGET_COMPILE_PDB = CMakeFiles\real_core.dir\real_core.pdb
+  TARGET_PDB = real_core.pdb
+
+build CMakeFiles\real_core.dir\source\vulkanMemory.cpp.obj: CXX_COMPILER__real_core_unscanned_Debug C$:\Users\lucas\source\repos\RealEngine\RealEngine\source\vulkanMemory.cpp || cmake_object_order_depends_target_real_core
+  FLAGS = /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MDd /Zi /Ob0 /Od /RTC1 -std:c++20
+  INCLUDES = -IC:\Users\lucas\source\repos\RealEngine\RealEngine\source -IC:\Users\lucas\source\repos\RealEngine\RealEngine\headers -IC:\Users\lucas\source\repos\RealEngine\RealEngine\shaders -IC:\Users\lucas\source\repos\RealEngine\RealEngine\shaders\embedded -I"C:\Users\lucas\OneDrive\Documents\Visual Studio 2022\Libraries\glm" -I"C:\Users\lucas\OneDrive\Documents\Visual Studio 2022\Libraries\glfw-3.3.9.bin.WIN64\Include" -IC:\VulkanSDK\1.4.313.2\Include
+  OBJECT_DIR = CMakeFiles\real_core.dir
+  OBJECT_FILE_DIR = CMakeFiles\real_core.dir\source
+  TARGET_COMPILE_PDB = CMakeFiles\real_core.dir\real_core.pdb
+  TARGET_PDB = real_core.pdb
+
+build CMakeFiles\real_core.dir\source\vulkanCore.cpp.obj: CXX_COMPILER__real_core_unscanned_Debug C$:\Users\lucas\source\repos\RealEngine\RealEngine\source\vulkanCore.cpp || cmake_object_order_depends_target_real_core
   FLAGS = /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MDd /Zi /Ob0 /Od /RTC1 -std:c++20
   INCLUDES = -IC:\Users\lucas\source\repos\RealEngine\RealEngine\source -IC:\Users\lucas\source\repos\RealEngine\RealEngine\headers -IC:\Users\lucas\source\repos\RealEngine\RealEngine\shaders -IC:\Users\lucas\source\repos\RealEngine\RealEngine\shaders\embedded -I"C:\Users\lucas\OneDrive\Documents\Visual Studio 2022\Libraries\glm" -I"C:\Users\lucas\OneDrive\Documents\Visual Studio 2022\Libraries\glfw-3.3.9.bin.WIN64\Include" -IC:\VulkanSDK\1.4.313.2\Include
   OBJECT_DIR = CMakeFiles\real_core.dir
@@ -137,7 +153,7 @@ build CMakeFiles\real_core.dir\shaders\embedded\triTestVert.cpp.obj: CXX_COMPILE
 #############################################
 # Link the static library real_core.lib
 
-build real_core.lib: CXX_STATIC_LIBRARY_LINKER__real_core_Debug CMakeFiles\real_core.dir\source\commandArgs.cpp.obj CMakeFiles\real_core.dir\source\program.cpp.obj CMakeFiles\real_core.dir\source\scene.cpp.obj CMakeFiles\real_core.dir\source\utils.cpp.obj CMakeFiles\real_core.dir\source\vulkanConfiguration.cpp.obj CMakeFiles\real_core.dir\shaders\embedded\triBufferMatrixVert.cpp.obj CMakeFiles\real_core.dir\shaders\embedded\triBufferSimpleFrag.cpp.obj CMakeFiles\real_core.dir\shaders\embedded\triBufferSimpleVert.cpp.obj CMakeFiles\real_core.dir\shaders\embedded\triTestFrag.cpp.obj CMakeFiles\real_core.dir\shaders\embedded\triTestVert.cpp.obj
+build real_core.lib: CXX_STATIC_LIBRARY_LINKER__real_core_Debug CMakeFiles\real_core.dir\source\commandArgs.cpp.obj CMakeFiles\real_core.dir\source\config.cpp.obj CMakeFiles\real_core.dir\source\scene.cpp.obj CMakeFiles\real_core.dir\source\utils.cpp.obj CMakeFiles\real_core.dir\source\vertexIndex.cpp.obj CMakeFiles\real_core.dir\source\vulkanMemory.cpp.obj CMakeFiles\real_core.dir\source\vulkanCore.cpp.obj CMakeFiles\real_core.dir\shaders\embedded\triBufferMatrixVert.cpp.obj CMakeFiles\real_core.dir\shaders\embedded\triBufferSimpleFrag.cpp.obj CMakeFiles\real_core.dir\shaders\embedded\triBufferSimpleVert.cpp.obj CMakeFiles\real_core.dir\shaders\embedded\triTestFrag.cpp.obj CMakeFiles\real_core.dir\shaders\embedded\triTestVert.cpp.obj
   LANGUAGE_COMPILE_FLAGS = /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MDd /Zi /Ob0 /Od /RTC1
   LINK_FLAGS = /machine:x64
   OBJECT_DIR = CMakeFiles\real_core.dir
@@ -164,6 +180,22 @@ build CMakeFiles\real.dir\source\main.cpp.obj: CXX_COMPILER__real_unscanned_Debu
   TARGET_COMPILE_PDB = CMakeFiles\real.dir\
   TARGET_PDB = real.pdb
 
+build CMakeFiles\real.dir\source\vulkanMemory.cpp.obj: CXX_COMPILER__real_unscanned_Debug C$:\Users\lucas\source\repos\RealEngine\RealEngine\source\vulkanMemory.cpp || cmake_object_order_depends_target_real
+  FLAGS = /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MDd /Zi /Ob0 /Od /RTC1 -std:c++20
+  INCLUDES = -IC:\Users\lucas\source\repos\RealEngine\RealEngine\source -IC:\Users\lucas\source\repos\RealEngine\RealEngine\headers -IC:\Users\lucas\source\repos\RealEngine\RealEngine\shaders -IC:\Users\lucas\source\repos\RealEngine\RealEngine\shaders\embedded -I"C:\Users\lucas\OneDrive\Documents\Visual Studio 2022\Libraries\glm" -I"C:\Users\lucas\OneDrive\Documents\Visual Studio 2022\Libraries\glfw-3.3.9.bin.WIN64\Include" -IC:\VulkanSDK\1.4.313.2\Include
+  OBJECT_DIR = CMakeFiles\real.dir
+  OBJECT_FILE_DIR = CMakeFiles\real.dir\source
+  TARGET_COMPILE_PDB = CMakeFiles\real.dir\
+  TARGET_PDB = real.pdb
+
+build CMakeFiles\real.dir\source\vertexIndex.cpp.obj: CXX_COMPILER__real_unscanned_Debug C$:\Users\lucas\source\repos\RealEngine\RealEngine\source\vertexIndex.cpp || cmake_object_order_depends_target_real
+  FLAGS = /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MDd /Zi /Ob0 /Od /RTC1 -std:c++20
+  INCLUDES = -IC:\Users\lucas\source\repos\RealEngine\RealEngine\source -IC:\Users\lucas\source\repos\RealEngine\RealEngine\headers -IC:\Users\lucas\source\repos\RealEngine\RealEngine\shaders -IC:\Users\lucas\source\repos\RealEngine\RealEngine\shaders\embedded -I"C:\Users\lucas\OneDrive\Documents\Visual Studio 2022\Libraries\glm" -I"C:\Users\lucas\OneDrive\Documents\Visual Studio 2022\Libraries\glfw-3.3.9.bin.WIN64\Include" -IC:\VulkanSDK\1.4.313.2\Include
+  OBJECT_DIR = CMakeFiles\real.dir
+  OBJECT_FILE_DIR = CMakeFiles\real.dir\source
+  TARGET_COMPILE_PDB = CMakeFiles\real.dir\
+  TARGET_PDB = real.pdb
+
 
 # =============================================================================
 # Link build statements for EXECUTABLE target real
@@ -172,7 +204,7 @@ build CMakeFiles\real.dir\source\main.cpp.obj: CXX_COMPILER__real_unscanned_Debu
 #############################################
 # Link the executable real.exe
 
-build real.exe: CXX_EXECUTABLE_LINKER__real_Debug CMakeFiles\real.dir\source\main.cpp.obj | C$:\VulkanSDK\1.4.313.2\Lib\vulkan-1.lib C$:\Users\lucas\OneDrive\Documents\Visual$ Studio$ 2022\Libraries\glfw-3.3.9.bin.WIN64\lib-vc2022\glfw3.lib real_core.lib C$:\VulkanSDK\1.4.313.2\Lib\vulkan-1.lib C$:\Users\lucas\OneDrive\Documents\Visual$ Studio$ 2022\Libraries\glfw-3.3.9.bin.WIN64\lib-vc2022\glfw3.lib || real_core.lib
+build real.exe: CXX_EXECUTABLE_LINKER__real_Debug CMakeFiles\real.dir\source\main.cpp.obj CMakeFiles\real.dir\source\vulkanMemory.cpp.obj CMakeFiles\real.dir\source\vertexIndex.cpp.obj | C$:\VulkanSDK\1.4.313.2\Lib\vulkan-1.lib C$:\Users\lucas\OneDrive\Documents\Visual$ Studio$ 2022\Libraries\glfw-3.3.9.bin.WIN64\lib-vc2022\glfw3.lib real_core.lib C$:\VulkanSDK\1.4.313.2\Lib\vulkan-1.lib C$:\Users\lucas\OneDrive\Documents\Visual$ Studio$ 2022\Libraries\glfw-3.3.9.bin.WIN64\lib-vc2022\glfw3.lib || real_core.lib
   FLAGS = /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MDd /Zi /Ob0 /Od /RTC1
   LINK_FLAGS = /machine:x64 /debug /INCREMENTAL /subsystem:console
   LINK_LIBRARIES = C:\VulkanSDK\1.4.313.2\Lib\vulkan-1.lib  "C:\Users\lucas\OneDrive\Documents\Visual Studio 2022\Libraries\glfw-3.3.9.bin.WIN64\lib-vc2022\glfw3.lib"  real_core.lib  C:\VulkanSDK\1.4.313.2\Lib\vulkan-1.lib  "C:\Users\lucas\OneDrive\Documents\Visual Studio 2022\Libraries\glfw-3.3.9.bin.WIN64\lib-vc2022\glfw3.lib"  kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib

@@ -3,29 +3,14 @@ project(real)
 
 set(CMAKE_CXX_STANDARD 20)
 
-function(create_resources dir)
-    # Collect input files
-    file(GLOB bins ${dir}/*)
-    foreach(bin ${bins})
-        # Get short filename
-        string(REGEX MATCH "([^/]+)$" filename ${bin})
-        # Replace filename spaces & extension separator for C compatibility
-        string(REGEX REPLACE "\\.| |-" "_" filename ${filename})
+if(DEFINED BUILD_SHADERS AND BUILD_SHADERS)
+    message(STATUS "Including CMakeBuildShaders.cmake")
+    include(CMakeBuildShaders.cmake)
+    compile_shaders()
+    create_resources(shaders/compiled shaders/embedded)
+    return()
+endif()
 
-        # get rid of _spv extension
-        string(LENGTH ${filename} STRING_LENGTH)
-        math(EXPR NEW_LENGTH "${STRING_LENGTH} - 4")
-        string(SUBSTRING ${filename} 0 "${NEW_LENGTH}" trimmedFileName)
-
-        file(WRITE "shaders/embedded/${trimmedFileName}.cpp" "")
-        # Read hex data from file
-        file(READ ${bin} filedata HEX)
-        # Convert hex data for C compatibility
-        string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1," filedata ${filedata})
-        # Append data to output file
-        file(APPEND "shaders/embedded/${trimmedFileName}.cpp" "const unsigned char ${trimmedFileName}[] = {${filedata}};\nconst unsigned ${trimmedFileName}Size = sizeof(${trimmedFileName});\n")
-    endforeach()
-endfunction()
 
 find_package(Vulkan REQUIRED)
 
@@ -43,24 +28,23 @@ link_libraries (
     "C:\\Users\\lucas\\OneDrive\\Documents\\Visual Studio 2022\\Libraries\\glfw-3.3.9.bin.WIN64\\lib-vc2022\\glfw3.lib"
 )
 
-#comment out, takes long time
-#create_resources(shaders/compiled source/embeddedShaders.cpp)
-
 set(real_headers
     headers/commandArgs.hpp
-    headers/program.hpp
+    headers/config.hpp
     headers/scene.hpp
     headers/utils.hpp
-    headers/vulkanConfiguration.hpp
+    headers/vulkanCore.hpp
 )
 
 file(GLOB SOURCE_FILES "shaders/embedded/*.cpp")
 set(real_source
     source/commandArgs.cpp
-    source/program.cpp
+    source/config.cpp
     source/scene.cpp
     source/utils.cpp
-    source/vulkanConfiguration.cpp
+    source/vertexIndex.cpp
+    source/vulkanMemory.cpp
+    source/vulkanCore.cpp
     ${SOURCE_FILES}
 )
 
@@ -70,7 +54,7 @@ add_library(real_core STATIC
     ${real_source}
 )
 
-add_executable(real source/main.cpp)
+add_executable(real source/main.cpp "source/vulkanMemory.cpp"   "source/vertexIndex.cpp")
 
 target_link_libraries(real real_core)
 

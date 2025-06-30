@@ -106,7 +106,13 @@ Doom-esque forward+ light rendering ?
 - [ ] Maybe use walk mesh to describe bounds, instead of creating full physics engine
 - [ ] Drag pinball paddles + ball into desktop, use ball to "break" pinball icon
     - Make breakable objects in pinball game with distinct material to make puzzle concrete and "gettable"
-
+# Minor optimization options
+- [ ] use if constexpr instead of if to make sure msvc discards branches
+- [ ] unroll constant maps into if constexpr / switch case branches
+- [ ] use string hashing to use switch branches for string
+- [ ] Use different compiler/linker than msvc or at least program other than Visual Studio for
+final build -- including unused header files increases .exe size, which doesn't seemt to be true for
+other compilers
 
 # Resources to look at
 - [ ] Handmade Hero
