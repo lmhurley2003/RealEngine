@@ -5,10 +5,11 @@
 Debug/
 x64/
 build/
+out/
+out/build/x64-Debug
 RealEngine.vcxproj
 RealEngine.vcxproj.filters
 RealEngine.vcxproj.user
 shaders/compiled
 shaders/embedded
 source/shadersEmbedded.cpp
-out/
