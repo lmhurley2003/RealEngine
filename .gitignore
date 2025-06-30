@@ -11,4 +11,4 @@ RealEngine.vcxproj.user
 shaders/compiled
 shaders/embedded
 source/shadersEmbedded.cpp
-out
+out/
