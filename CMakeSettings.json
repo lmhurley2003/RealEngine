@@ -25,8 +25,8 @@
         {
             "name": "BuildShaders",
             "generator": "Ninja",
-            "buildRoot": "${projectDir}\\build\\${name}",
-            "installRoot": "${projectDir}\\install\\${name}",
+            "buildRoot": "${projectDir}\\out\\build\\${name}",
+            "installRoot": "${projectDir}\\out\\install\\${name}",
             "cmakeCommandArgs": "",
             "buildCommandArgs": "",
             "variables": [
