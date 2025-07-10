@@ -11,6 +11,7 @@ if(DEFINED BUILD_SHADERS AND BUILD_SHADERS)
     return()
 endif()
 
+include(CMakeGlobalMacros.cmake)
 
 find_package(Vulkan REQUIRED)
 
@@ -21,6 +22,7 @@ include_directories(${PROJECT_SOURCE_DIR}/source
                     "C:\\Users\\lucas\\OneDrive\\Documents\\Visual Studio 2022\\Libraries\\glm"
                     "C:\\Users\\lucas\\OneDrive\\Documents\\Visual Studio 2022\\Libraries\\glfw-3.3.9.bin.WIN64\\Include"
                     "C:\\VulkanSDK\\1.4.313.2\\Include"
+                    "C:\\Users\\lucas\\source\\repos\\stb"
 )
 
 link_libraries (

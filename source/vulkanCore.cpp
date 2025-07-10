@@ -7,6 +7,7 @@
 #include <cassert> //(void)0 if NDEBUG defined
 #include <algorithm>
 #include <chrono>
+#include <array>
 #include <map>
 
 #include "vulkanCore.hpp"
@@ -72,6 +73,7 @@ bool App::checkValidationLayerSupport() {
     for (auto& layer : availableLayers) {
         availableLayersSet.insert(layer.layerName);
     }
+
     for (const auto& layerName : validationLayers) {
         if (!availableLayersSet.count(layerName)) {
             std::cerr << "Necessary validation layer " + std::string(layerName) + " not found in available layers!" << std::endl;
@@ -266,6 +268,7 @@ App::QueueFamilyIndices App::findQueueFamilies(VkPhysicalDevice device) {
 };
 
 bool App::checkDeviceExtensionSupport(VkPhysicalDevice device) {
+    
     uint32_t extensionCount;
     vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
 
@@ -274,8 +277,37 @@ bool App::checkDeviceExtensionSupport(VkPhysicalDevice device) {
 
     std::unordered_set<std::string> requiredExtensions(deviceExtensions.begin(), deviceExtensions.end());
 
+    uint32_t vulkanVersion;
+    vkEnumerateInstanceVersion(&vulkanVersion);
+    uint32_t versionMajor = VK_API_VERSION_MAJOR(vulkanVersion);
+    uint32_t versionMinor = VK_API_VERSION_MINOR(vulkanVersion);
+    uint32_t versionPatch = VK_API_VERSION_PATCH(vulkanVersion);
+
+
+    if (DEBUG && PRINT_DEBUG && DEBUG_LEVEL >= ALL) {
+        std::cout << "\nUsing vulkan version " << versionMajor << "." << versionMinor << "." << versionPatch << std::endl;
+    }
+
+    if (useDynamicRendering && versionMinor < 2) {
+        requiredExtensions.emplace(VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME);
+        if (versionMinor < 1) {
+            requiredExtensions.emplace(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+        }
+    }
+
     for (const auto& extension : availableExtensions) {
         requiredExtensions.erase(extension.extensionName);
+    }
+
+    if (useDynamicRendering && !requiredExtensions.empty()) {
+        if (requiredExtensions.count(VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME)) {
+            requiredExtensions.erase(VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME);
+            useDynamicRendering = false;
+        }
+        if (requiredExtensions.count(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME)) {
+            requiredExtensions.erase(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+            useDynamicRendering = false;
+        }
     }
 
     return requiredExtensions.empty();
@@ -332,6 +364,61 @@ uint32_t App::rateDeviceSuitability(const VkPhysicalDevice& device) {
     return score;
 }
 
+void App::determineOptionalExtensions(const VkPhysicalDevice& device) {
+    if (optionalDeviceExtensions.size() <= 0) return;
+
+    uint32_t extensionCount;
+    vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
+
+    std::vector<VkExtensionProperties> availableExtensions(extensionCount);
+    vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data());
+
+    //add necessary extensions based on queried vulkan version
+    uint32_t vulkanVersion;
+    vkEnumerateInstanceVersion(&vulkanVersion);
+    uint32_t versionMajor = VK_API_VERSION_MAJOR(vulkanVersion);
+    uint32_t versionMinor = VK_API_VERSION_MINOR(vulkanVersion);
+    uint32_t versionPatch = VK_API_VERSION_PATCH(vulkanVersion);
+
+
+    if (DEBUG && PRINT_DEBUG && DEBUG_LEVEL >= ALL) {
+        std::cout << "\nUsing vulkan version " << versionMajor << "." << versionMinor << "." << versionPatch << std::endl;
+    }
+
+    //TODO why do I need to include these even though vulkan version should include these by default?
+    if (useDynamicRendering /* && versionMinor < 2*/) {
+        optionalDeviceExtensions.push_back(VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME);
+        //if (versionMinor < 1) {
+        optionalDeviceExtensions.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+        //}
+    }
+
+    //now check that all extensions are supported
+    std::unordered_set<std::string> optionalExtensions(optionalDeviceExtensions.begin(), optionalDeviceExtensions.end());
+    std::unordered_set<const char*> finalOptionalExtensions(optionalDeviceExtensions.begin(), optionalDeviceExtensions.end());
+
+    for (const auto& extension : availableExtensions) {
+        optionalExtensions.erase(extension.extensionName);
+    }
+
+    if (useDynamicRendering) {
+        if (optionalExtensions.count(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME) ||
+            optionalExtensions.count(VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME) ||
+            optionalExtensions.count(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME)) {
+            useDynamicRendering = false;
+            //have to actually remove optional extensions from optionalExtensionsList
+            finalOptionalExtensions.erase(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME);
+            finalOptionalExtensions.erase(VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME);
+            finalOptionalExtensions.erase(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+        }
+    }
+
+    //now insert the actual used optional extensions into end of full extension list
+    deviceExtensions.insert(deviceExtensions.end(), finalOptionalExtensions.begin(), finalOptionalExtensions.end());
+
+    return;
+}
+
 //TODO use integrated GPU for UI stuff ?
 void App::pickPhysicalDevice() {
     uint32_t deviceCount = 0;
@@ -356,6 +443,8 @@ void App::pickPhysicalDevice() {
     else {
         physicalDevice = candidates.rbegin()->second;
     }
+
+    determineOptionalExtensions(physicalDevice);
 
     if (DEBUG && PRINT_DEBUG && DEBUG_LEVEL >= ALL) {
         VkPhysicalDeviceProperties deviceProperties;
@@ -396,15 +485,26 @@ void App::createLogicalDevice() {
         queueCreateInfos.emplace_back(queueCreateInfo);
     }
 
-    VkPhysicalDeviceFeatures enabledFeatures{};
+    //VkPhysicalDeviceFeatures enabledFeatures{};
     vkGetPhysicalDeviceFeatures(physicalDevice, &deviceFeatures);
+    vkGetPhysicalDeviceProperties(physicalDevice, &deviceProperties); //TODO do I need to be caching this ? probably
 
     VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    constexpr VkPhysicalDeviceDynamicRenderingFeaturesKHR dynamicRenderingFeature{
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR,
+            .dynamicRendering = VK_TRUE,
+    };
+    if (useDynamicRendering) {
+        createInfo.pNext = &dynamicRenderingFeature;
+    }
+
+
     createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
     createInfo.pQueueCreateInfos = queueCreateInfos.data();
 
-    createInfo.pEnabledFeatures = &enabledFeatures;
+    //TODO do I need to be enabling all features ?
+    createInfo.pEnabledFeatures = &deviceFeatures;
 
     createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
     createInfo.ppEnabledExtensionNames = deviceExtensions.data();
@@ -531,28 +631,35 @@ void App::createSwapChain() {
     vkGetSwapchainImagesKHR(device, swapChain, &finalImageCount, swapChainImages.data());
 }
 
+VkImageView App::createImageView(VkImage image, VkFormat format) {
+    VkImageViewCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    createInfo.image = image;
+    createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    createInfo.format = format;
+    createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+    createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+    createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+    createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+    createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    createInfo.subresourceRange.baseMipLevel = 0;
+    createInfo.subresourceRange.levelCount = 1;
+    createInfo.subresourceRange.baseArrayLayer = 0;
+    createInfo.subresourceRange.layerCount = 1;
+
+    VkImageView imageView;
+    if (vkCreateImageView(device, &createInfo, nullptr, &imageView) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create swap chain image views!");
+    }
+
+    return imageView;
+}
+
 void App::createSwapChainImageViews() {
     swapChainImageViews.resize(swapChainImages.size());
 
     for (size_t i = 0; i < swapChainImages.size(); i++) {
-        VkImageViewCreateInfo createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        createInfo.image = swapChainImages[i];
-        createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        createInfo.format = swapChainImageFormat;
-        createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-        createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-        createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-        createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-        createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        createInfo.subresourceRange.baseMipLevel = 0;
-        createInfo.subresourceRange.levelCount = 1;
-        createInfo.subresourceRange.baseArrayLayer = 0;
-        createInfo.subresourceRange.layerCount = 1;
-
-        if (vkCreateImageView(device, &createInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS) {
-            throw std::runtime_error("Failed to create swap chain image views!");
-        }
+        swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat);
     }
 }
 
@@ -568,10 +675,10 @@ void App::initVulkan() {
 
 //TODO look at dynamic rendering, add more attachments / subpasses / depnedencies for subpasses / deferred
 void App::createRenderPass() {
-    std::unordered_map<int, VkSampleCountFlagBits> sampleMap = 
-        {{1, VK_SAMPLE_COUNT_1_BIT}, {2, VK_SAMPLE_COUNT_2_BIT}, {4, VK_SAMPLE_COUNT_4_BIT}, 
-         {8, VK_SAMPLE_COUNT_8_BIT}, {16, VK_SAMPLE_COUNT_16_BIT}, {32, VK_SAMPLE_COUNT_32_BIT},
-        {64, VK_SAMPLE_COUNT_64_BIT} };
+    std::unordered_map<int, VkSampleCountFlagBits> sampleMap =
+    { {1, VK_SAMPLE_COUNT_1_BIT}, {2, VK_SAMPLE_COUNT_2_BIT}, {4, VK_SAMPLE_COUNT_4_BIT},
+     {8, VK_SAMPLE_COUNT_8_BIT}, {16, VK_SAMPLE_COUNT_16_BIT}, {32, VK_SAMPLE_COUNT_32_BIT},
+    {64, VK_SAMPLE_COUNT_64_BIT} };
     VkAttachmentDescription colorAttachment{};
     colorAttachment.format = swapChainImageFormat;
     colorAttachment.samples = sampleMap[Config::parameters.getInt("multisamples")];
@@ -591,7 +698,7 @@ void App::createRenderPass() {
     VkSubpassDescription subpass{};
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1; //referenced by "layout(location = 0) out vec4 outColor" directive
-    subpass.pColorAttachments = &colorAttachmentRef;
+    subpass.pColorAttachments = colorAttachments;
     //pInputAttatchments <- attatchments read from shader
     //pResolveAttatchments <- attatchments used for multisampling color attatchments
     //pDepthStencilAttatchment <- attatchmentt for depth + stencil data
@@ -622,6 +729,7 @@ void App::createRenderPass() {
     }
 }
 
+
 /*VkShaderModule App::createShaderModule(const std::vector<char>& code) {
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -649,15 +757,23 @@ VkShaderModule App::createShaderModule(uint32_t i) {
 void App::createDescriptorSetLayout() {
     VkDescriptorSetLayoutBinding uboLayoutBinding{};
     uboLayoutBinding.binding = 0;
-    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     uboLayoutBinding.descriptorCount = 1;
+    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     uboLayoutBinding.stageFlags = Config::uniformBufferObjectStages();
     uboLayoutBinding.pImmutableSamplers = nullptr;
+
+    VkDescriptorSetLayoutBinding samplerLayoutBinding{};
+    samplerLayoutBinding.binding = 1;
+    samplerLayoutBinding.descriptorCount = 1;
+    samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    samplerLayoutBinding.pImmutableSamplers = nullptr;
+    samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     
+    std::array<VkDescriptorSetLayoutBinding, 2> bindings = { uboLayoutBinding, samplerLayoutBinding };
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = 1;
-    layoutInfo.pBindings = &uboLayoutBinding;
+    layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+    layoutInfo.pBindings = bindings.data();
 
     if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create descriptor set layout!");
@@ -805,7 +921,8 @@ void App::createGraphicsPipeline() {
         pipelineInfo.pColorBlendState = &colorBlending;
         pipelineInfo.pDynamicState = &dynamicState;
         pipelineInfo.layout = pipelineLayout;
-        pipelineInfo.renderPass = renderPass;
+        pipelineInfo.renderPass = useDynamicRendering ? nullptr : renderPass;
+
         pipelineInfo.subpass = 0;
 
         if (stage.type == MAIN_RENDER && derivePipelines) {
@@ -906,51 +1023,6 @@ void App::createCommandBuffers() {
 
 }
 
-void App::createVertexBuffer() {
-    uint32_t numElements, elementSize = 0;
-    Config::vertexBufferSize(&numElements, &elementSize);
-    VkDeviceSize bufferSize = static_cast<VkDeviceSize>(numElements * elementSize);
-
-    VkBuffer stagingBuffer;
-    VkDeviceMemory stagingBufferMemory;
-    createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
-
-    //TODO compare to explicitly flushing memory (instead of using HOST_COHERENT bit?)
-    void* data;
-    vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
-    memcpy(data, Config::vertices.data(), static_cast<size_t>(bufferSize));
-    vkUnmapMemory(device, stagingBufferMemory);
-
-    createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory);
-
-    copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
-
-    vkDestroyBuffer(device, stagingBuffer, nullptr);
-    vkFreeMemory(device, stagingBufferMemory, nullptr);
-}
-
-void App::createIndexBuffer() {
-    uint32_t numElements, elementSize = 0;
-    Config::indexBufferSize(&numElements, &elementSize);
-    VkDeviceSize bufferSize = numElements * elementSize;
-
-    VkBuffer stagingBuffer;
-    VkDeviceMemory stagingBufferMemory;
-    createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
-
-    void* data;
-    vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
-    memcpy(data, Config::indices.data(), (size_t)bufferSize);
-    vkUnmapMemory(device, stagingBufferMemory);
-
-    createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory);
-
-    copyBuffer(stagingBuffer, indexBuffer, bufferSize);
-
-    vkDestroyBuffer(device, stagingBuffer, nullptr);
-    vkFreeMemory(device, stagingBufferMemory, nullptr);
-}
-
 void App::createUniformBuffers() {
     VkDeviceSize uniformBufferSize = Config::uniformBufferObjectSize();
 
@@ -960,19 +1032,51 @@ void App::createUniformBuffers() {
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         createBuffer(uniformBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffers[i], uniformBuffersMemory[i]);
-        vkMapMemory(device, uniformBuffersMemory[i], 0, uniformBufferSize, 0, &uniformBuffersMapped[i]);
+        mapMemory(device, uniformBuffersMemory[i], 0, uniformBufferSize, 0, &uniformBuffersMapped[i]);
+    }
+}
+
+void App::createTextureImageView() {
+    textureImageView = createImageView(textureImage, VK_FORMAT_R8G8B8A8_SRGB);
+}
+
+void App::createTextureSampler() {
+    VkSamplerCreateInfo samplerInfo{};
+    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerInfo.magFilter = VK_FILTER_LINEAR;
+    samplerInfo.minFilter = VK_FILTER_LINEAR;
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.anisotropyEnable = deviceFeatures.samplerAnisotropy;
+
+
+    samplerInfo.maxAnisotropy = deviceFeatures.samplerAnisotropy ? deviceProperties.limits.maxSamplerAnisotropy : 1.0f;
+    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    samplerInfo.unnormalizedCoordinates = VK_FALSE;
+    samplerInfo.compareEnable = VK_FALSE;
+    samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    samplerInfo.mipLodBias = 0.0f;
+    samplerInfo.minLod = 0.0f;
+    samplerInfo.maxLod = 0.0f;
+
+    if (vkCreateSampler(device, &samplerInfo, nullptr, &textureImageSampler) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create texture sampler!");
     }
 }
 
 void App::createDescriptorPool() {
-    VkDescriptorPoolSize poolSize{};
-    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSize.descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+    std::array<VkDescriptorPoolSize, 2> poolSizes{};
+    poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+    poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[1].descriptorCount = static_cast<uint32_t> (MAX_FRAMES_IN_FLIGHT);
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.poolSizeCount = 1;
-    poolInfo.pPoolSizes = &poolSize;
+    poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+    poolInfo.pPoolSizes = poolSizes.data();
     //TODO if we modify / free descriptor pool, need VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT
     poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
 
@@ -995,23 +1099,38 @@ void App::createDescriptorSets() {
     }
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+
+        std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
+
         VkDescriptorBufferInfo bufferInfo{};
         bufferInfo.buffer = uniformBuffers[i];
         bufferInfo.offset = 0;
         bufferInfo.range = Config::uniformBufferObjectSize();
+        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[0].dstSet = descriptorSets[i];
+        descriptorWrites[0].dstBinding = 0;
+        descriptorWrites[0].dstArrayElement = 0;
+        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrites[0].descriptorCount = 1;
+        descriptorWrites[0].pBufferInfo = &bufferInfo;
+        descriptorWrites[0].pImageInfo = nullptr;
+        descriptorWrites[0].pTexelBufferView = nullptr;
 
-        VkWriteDescriptorSet descriptorWrite{};
-        descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrite.dstSet = descriptorSets[i];
-        descriptorWrite.dstBinding = 0;
-        descriptorWrite.dstArrayElement = 0;
-        descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        descriptorWrite.descriptorCount = 1;
-        descriptorWrite.pBufferInfo = &bufferInfo;
-        descriptorWrite.pImageInfo = nullptr;
-        descriptorWrite.pTexelBufferView = nullptr;
 
-        vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
+        VkDescriptorImageInfo imageInfo{};
+        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        imageInfo.imageView = textureImageView;
+        imageInfo.sampler = textureImageSampler;
+        descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[1].dstSet = descriptorSets[i];
+        descriptorWrites[1].dstBinding = 1;
+        descriptorWrites[1].dstArrayElement = 0;
+        descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[1].descriptorCount = 1;
+        descriptorWrites[1].pImageInfo = &imageInfo;
+
+
+        vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
     }
 }
 
@@ -1048,14 +1167,25 @@ void App::createSynchObjects() {
 }
 
 void App::initProgram() {
-    createRenderPass();
+    if (!useDynamicRendering) {
+        createRenderPass();
+    }
     createDescriptorSetLayout();
     createGraphicsPipeline();
-    createFramebuffers();
+    if (!useDynamicRendering) {
+        createFramebuffers();
+    }
     createCommandPools();
+#if defined(COMBINED_VERTEX_INDEX_BUFFER) && COMBINED_VERTEX_INDEX_BUFFER
+    createVertexIndexBuffer();
+#else
     createVertexBuffer();
     createIndexBuffer();
+#endif
     createUniformBuffers();
+    createTextureImage("statue.jpg");
+    createTextureImageView();
+    createTextureSampler();
     createDescriptorPool();
     createDescriptorSets();
     createCommandBuffers();
@@ -1079,7 +1209,7 @@ void App::recreateSwapChain() {
     createFramebuffers();
 }
 
-//TODO almost def need to change for secondar command buffers / subpasses / shadowmapping
+//TODO almost def need to change for secondary command buffers / subpasses / shadowmapping
 //also TODO change command buffer stucture so we dont have to wait on VKFence to being drawing ?
 // ie instantiate command buffers per swapchain image
 void App::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
@@ -1090,39 +1220,58 @@ void App::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex
     if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
         throw std::runtime_error("Failed to begin recording command buffer!");
     }
+    //TODO reconfigure for secondary command buffers (VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS)
 
-    VkRenderPassBeginInfo renderPassInfo{};
-    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassInfo.renderPass = renderPass;
-    renderPassInfo.framebuffer = swapChainFramebuffers[imageIndex];
-    renderPassInfo.renderArea.offset = { 0, 0 };
-    renderPassInfo.renderArea.extent = swapChainExtent;
+    if (useDynamicRendering) { //will only be true if macro set to true
+#if defined(DYNAMIC_RENDERING) and DYNAMIC_RENDERING
+        transitionImageLayout(swapChainImages[imageIndex], swapChainImageFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, commandBuffer);
 
-    //TODO change when adding subpasses / deferred rendering
-    VkClearValue clearColor = { {{0.0f, 0.0f, 0.0f, 1.0f}} };
-    renderPassInfo.clearValueCount = 1;
-    renderPassInfo.pClearValues = &clearColor;
+        const VkRenderingAttachmentInfoKHR colorAttachmentInfo{
+            .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR,
+            .imageView = swapChainImageViews[imageIndex],
+            .imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR,
+            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+            .clearValue = { {{0.0f, 0.0f, 0.0f, 1.0f}} }
+        };
 
-    //TODO reconfigure for secondary command buffers (VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS) and/or dynamic rendering
-    vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        const VkRenderingInfoKHR renderingInfo{
+            .sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR,
+            .renderArea = {{ 0, 0 },  swapChainExtent},
+            .layerCount = 1,
+            .colorAttachmentCount = 1,
+            .pColorAttachments = &colorAttachmentInfo,
+        };
+
+        vkCmdBeginRendering(commandBuffer, &renderingInfo);
+#endif 
+    }
+    else {
+        VkRenderPassBeginInfo renderPassInfo{};
+        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        renderPassInfo.renderPass = renderPass;
+        renderPassInfo.framebuffer = swapChainFramebuffers[imageIndex];
+        renderPassInfo.renderArea.offset = { 0, 0 };
+        renderPassInfo.renderArea.extent = swapChainExtent;
+
+        //TODO change when adding subpasses / deferred rendering
+        VkClearValue clearColor = { {{0.0f, 0.0f, 0.0f, 1.0f}} };
+        renderPassInfo.clearValueCount = 1;
+        renderPassInfo.pClearValues = &clearColor;
+        vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+    }
 
     /*static*/ VkPipeline pipeline = pipelines[MAIN_RENDER];
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+#if defined(COMBINED_VERTEX_INDEX_BUFFER) && COMBINED_VERTEX_INDEX_BUFFER
+    bindVertexIndexBuffer(commandBuffer);
+#else 
+    bindVertexBuffer(commandBuffer);
 
-    VkBuffer vertexBuffers[] = { vertexBuffer }; 
-    VkDeviceSize offsets[] = { 0 };
-    vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets); //TODO bind both vertex+index in one call
-    
-    //TODO remember this is static
-    static uint32_t numIndices, indexSize = 0;
-    Config::indexBufferSize(&numIndices, &indexSize);
-    if (numIndices > 0) {
-        //ony two sizes of indices allowed
-        static VkIndexType indexType = indexSize <= 2 ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32;
-        vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
-    }
+    bindIndexBuffer(commandBuffer);
+#endif
 
-    //TODO change if dyanmic pipeline is different
+    //TODO change if dynamic pipeline is different
     VkViewport viewport{};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
@@ -1134,17 +1283,19 @@ void App::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex
 
     VkRect2D scissor{};
     scissor.offset = { 0, 0 };
-    scissor.extent = swapChainExtent;
+    scissor.extent = { swapChainExtent.width, swapChainExtent.height };
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-  
+
     if (Config::uniformBufferObjectSize() > 0) {
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[flightFrame], 0, nullptr);
     }
+    uint32_t numIndices = 0, indexSize = 0;
+    Config::indexBufferSize(&numIndices, &indexSize);
     if (numIndices > 0) {
         vkCmdDrawIndexed(commandBuffer, numIndices, 1, 0, 0, 0);
     }
-    else{
+    else {
         uint32_t numVertices, vertexSize = 0;
         Config::vertexBufferSize(&numVertices, &vertexSize);
         if (numVertices > 0) {
@@ -1155,7 +1306,20 @@ void App::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex
         }
     }
 
-    vkCmdEndRenderPass(commandBuffer);
+    if (useDynamicRendering) {
+#if defined(DYNAMIC_RENDERING) and DYNAMIC_RENDERING
+        vkCmdEndRendering(commandBuffer);
+#endif
+    }
+    else {
+        vkCmdEndRenderPass(commandBuffer);
+    }
+
+    if (useDynamicRendering) {
+#if defined(DYNAMIC_RENDERING) and DYNAMIC_RENDERING
+        transitionImageLayout(swapChainImages[imageIndex], swapChainImageFormat, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, commandBuffer);
+#endif
+    }
 
     if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
         throw std::runtime_error("Failed to record command buffer!");
@@ -1231,7 +1395,7 @@ void App::drawFrame() {
     presentInfo.pImageIndices = &imageIndex;
     // presentInfo.pResults = nullptr;  // Optional
 
-    /*static*/ VkQueue presentQueue = queues[queueFamilyIndices.present()];
+    static VkQueue presentQueue = queues[queueFamilyIndices.present()];
     vkQueuePresentKHR(presentQueue, &presentInfo);
 
     flightFrame = (flightFrame + 1) % MAX_FRAMES_IN_FLIGHT;
@@ -1243,13 +1407,13 @@ void App::mainLoop() {
         glfwPollEvents();
         drawFrame();
     }
-
-    vkDeviceWaitIdle(device);
 }
 
 void App::cleanupSwapChain() {
-    for (size_t i = 0; i < swapChainFramebuffers.size(); i++) {
-        vkDestroyFramebuffer(device, swapChainFramebuffers[i], nullptr);
+    if (!useDynamicRendering) {
+        for (size_t i = 0; i < swapChainFramebuffers.size(); i++) {
+            vkDestroyFramebuffer(device, swapChainFramebuffers[i], nullptr);
+        }
     }
 
     for (size_t i = 0; i < swapChainImageViews.size(); i++) {
@@ -1260,7 +1424,14 @@ void App::cleanupSwapChain() {
 }
 
 void App::cleanup() {
+    vkDeviceWaitIdle(device);
     cleanupSwapChain();
+
+    //TODO chnage when number of used textures is not known at runtime
+    vkDestroySampler(device, textureImageSampler, nullptr);
+    vkDestroyImageView(device, textureImageView, nullptr);
+    vkDestroyImage(device, textureImage, nullptr);
+    vkFreeMemory(device, textureImageMemory, nullptr);
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         freeBuffer(uniformBuffers[i], uniformBuffersMemory[i]);
@@ -1270,9 +1441,13 @@ void App::cleanup() {
 
     vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 
+#if defined(COMBINED_VERTEX_INDEX_BUFFER) && COMBINED_VERTEX_INDEX_BUFFER
+    freeBuffer(vertexIndexBuffer, vertexIndexBufferMemory);
+#else
     freeBuffer(indexBuffer, indexBufferMemory);
 
     freeBuffer(vertexBuffer, indexBufferMemory);
+#endif
 
     for (auto& semaphore : imageAvailableSemaphores) {
         vkDestroySemaphore(device, semaphore, nullptr);
@@ -1294,7 +1469,8 @@ void App::cleanup() {
         vkDestroyPipeline(device, pipeline.second, nullptr);
     }
     vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-    vkDestroyRenderPass(device, renderPass, nullptr);
+
+    if(!useDynamicRendering) vkDestroyRenderPass(device, renderPass, nullptr);
 
     vkDestroyDevice(device, nullptr);
 

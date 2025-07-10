@@ -12,6 +12,44 @@
             "ctestCommandArgs": ""
         },
         {
+            "name": "x64-Clang",
+            "generator": "Ninja",
+            "configurationType": "Release",
+            "inheritEnvironments": [ "clang_cl_x64" ],
+            "buildRoot": "${projectDir}\\out\\build\\${name}",
+            "installRoot": "${projectDir}\\out\\install\\${name}",
+            "cmakeCommandArgs": "",
+            "buildCommandArgs": "",
+            "ctestCommandArgs": "",
+            "variables": [
+                {
+                    "name": "BUILD_SHADERS",
+                    "value": "OFF",
+                    "type": "BOOL"
+                },
+                {
+                    "name": "SIMPLE_VERTEX",
+                    "value": "OFF",
+                    "type": "BOOL"
+                },
+                {
+                    "name": "COMBINED_VERTEX_INDEX_BUFFER",
+                    "value": "ON",
+                    "type": "BOOL"
+                },
+                {
+                    "name": "INDEX_32BIT",
+                    "value": "OFF",
+                    "type": "BOOL"
+                },
+                {
+                    "name": "DYNAMIC_RENDERING",
+                    "value": "ON",
+                    "type": "BOOL"
+                }
+            ]
+        },
+        {
             "name": "x64-Debug-Clang",
             "generator": "Ninja",
             "configurationType": "Debug",
@@ -20,7 +58,34 @@
             "installRoot": "${projectDir}\\out\\install\\${name}",
             "cmakeCommandArgs": "",
             "buildCommandArgs": "",
-            "ctestCommandArgs": ""
+            "ctestCommandArgs": "",
+            "variables": [
+                {
+                    "name": "BUILD_SHADERS",
+                    "value": "OFF",
+                    "type": "BOOL"
+                },
+                {
+                    "name": "SIMPLE_VERTEX",
+                    "value": "OFF",
+                    "type": "BOOL"
+                },
+                {
+                    "name": "COMBINED_VERTEX_INDEX_BUFFER",
+                    "value": "ON",
+                    "type": "BOOL"
+                },
+                {
+                    "name": "INDEX_32BIT",
+                    "value": "OFF",
+                    "type": "BOOL"
+                },
+                {
+                    "name": "DYNAMIC_RENDERING",
+                    "value": "ON",
+                    "type": "BOOL"
+                }
+            ]
         },
         {
             "name": "BuildShaders",

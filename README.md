@@ -26,7 +26,7 @@ Refactorable and multipurpose realtime 3D engine made in Vulkan
 - [ ] Basic shadow mapping 
 - [ ] Font loader both with ray marched renderer and font atlas 
 - [ ] Advanced shadow mapping? (variance shadow mapping, cascade shadow mapping)
-- [ ] More thourghtful memeory allocation - custom allocator of library: https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator
+- [ ] More thoughtful memory allocation - custom allocator or library: https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator
 - [ ] Mesh stripification
 - [ ] Linear triangle cache ?
     - resource: https://tomforsyth1000.github.io/papers/fast_vert_cache_opt.html
@@ -52,6 +52,11 @@ Refactorable and multipurpose realtime 3D engine made in Vulkan
     to manually order "windows" back to front (but that's prbably pretty trivial)
         -Could this work with occlusion culling ? Maybe occlusion culling would be faster 
          CPU-side since we probably have a small, fixed-size number of screen-space aligned occluders
+    -Maybe actually use extent feature ?
+    - The main question I am havving is that the most obvious solution is to have each window render to an offscreen image buffer,
+    then place that image buffer on the screen. But there's something that feels sort fo icky about that, and feels like I could instead 
+    just render things striaght to screen with a throughtful use of depth clearing, passing in offset of window with push constants, and/or
+    using dynamic extent
 - [ ] Maybe release each seperate "program" on Itch.io, combine in final game with meta layer
     - If I want to run games in browser, proabably need abstraction to use different grpahics APIs ie WebGL
 - [ ] Probably should end up pre redering SOME stuff (ie pinball background), but want to prerender as little as \
@@ -78,6 +83,12 @@ Animal Well too much but idk maybe I have to get rid of this aversion to copying
     -On second thought almost certainly better to do offset+size approach since the "set=n" directive is constant, would need
      separate shaders per window
     -But maybe have seperate sets for static vs dynamic lights ?
+- [ ] should probably make a UI Window / clickable class that can serve as a tree with other clickable images within it.
+    -Things within windows will be mutually exlcusive with other clickable things, and will not overlap with other windows,
+-   so implicitly creates an acceleration tree-like structure for speeding up click hits/misses
+- [ ] Maybe instead of doing pinball as first test, do desktop backgroun (grass instancing, dither, etc)
+- [ ] If I want a true "oh wow the scope of this game is huge" moment, make this desktop bg world HUGE, like
+maybe hide a whole small-scale open world survival minigame behind it
 
 # Game design princiciples
 - Maybe overacrching game loop is pinball, with SickPix Pro !, email, Sims-like game, screensavers as meta elements
@@ -98,9 +109,15 @@ lowering multisampling samples, in general purposfilly alaisging stuff
 program resolution. 
 - Add a lot of small interactive touches. Like think about Pajama Sam, there's not a lot of complex gamepley yet the
 players are propelled by small moments of interactivty and humor
+- 
+
+#V VMA allocator notes
+- all allocations made from larger VkDevice Memory allocation 
+- can make dedicated allocation block with VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, but
+library will do this automatically under certain circumstances (ie )
 
 # Pinball
-- [ ] Likely a good start for a proof on concept
+- [ ] Likely a good start for a proof of concept
 - [ ] Space cadet has multiple lights, likely prerenderered, can I get away with using just bloom instead of
 Doom-esque forward+ light rendering ?
 - [ ] Maybe use walk mesh to describe bounds, instead of creating full physics engine
@@ -110,14 +127,17 @@ Doom-esque forward+ light rendering ?
 - [ ] use if constexpr instead of if to make sure msvc discards branches
 - [ ] unroll constant maps into if constexpr / switch case branches
 - [ ] use string hashing to use switch branches for string
-- [ ] Use different compiler/linker than msvc or at least program other than Visual Studio for
+- [x] Use different compiler/linker than msvc or at least program other than Visual Studio for
 final build -- including unused header files increases .exe size, which doesn't seemt to be true for
 other compilers
+    - DONE : using clang, decreased .exe size by 3x ???    
 
 # Resources to look at
 - [ ] Handmade Hero
     - Hot reloading
     - Using DLLs
     - C-style programming
+- [ ] Screenspace ambient occlusion https://research.nvidia.com/sites/default/files/pubs/2012-06_Scalable-Ambient-Obscurance/McGuire12SAO.pdf
+- [ ] Dependency graphs, buffer management, multithreading practices https://www.youtube.com/watch?v=mdPeXJ0eiGc&t=902s
 - [x] Billy Basso interview  : https://youtu.be/YngwUu4bXR4?si=yCt0EJOj-UvZdhzP
     - Use MIDI to tweak variables ?

@@ -84,16 +84,16 @@ void parseCommandLine(int argc, char* argv[]) {
 				skipLen++;
 			}
 
-			if (skipLen > 1 && std::holds_alternative<bool>(Config::parameters.p[savedArgName]) ||
-				skipLen > 2 && std::holds_alternative<std::string>(Config::parameters.p[savedArgName]) ||
-				skipLen > 2 && std::holds_alternative<int>(Config::parameters.p[savedArgName]) ||
-				skipLen > 3 && std::holds_alternative<glm::uvec2>(Config::parameters.p[savedArgName])
+			if ((skipLen > 1 && std::holds_alternative<bool>(Config::parameters.p[savedArgName])) ||
+				(skipLen > 2 && std::holds_alternative<std::string>(Config::parameters.p[savedArgName])) ||
+				(skipLen > 2 && std::holds_alternative<int>(Config::parameters.p[savedArgName])) ||
+				(skipLen > 3 && std::holds_alternative<glm::uvec2>(Config::parameters.p[savedArgName]))
 				) {
 				throwError("parameter given too many arguments" + savedArgName);
 			}
-			else if (skipLen < 2 && std::holds_alternative<std::string>(Config::parameters.p[savedArgName]) ||
-				skipLen < 2 && std::holds_alternative<int>(Config::parameters.p[savedArgName]) ||
-				skipLen < 3 && std::holds_alternative<glm::uvec2>(Config::parameters.p[savedArgName])) {
+			else if ((skipLen < 2 && std::holds_alternative<std::string>(Config::parameters.p[savedArgName])) ||
+				(skipLen < 2 && std::holds_alternative<int>(Config::parameters.p[savedArgName])) ||
+				(skipLen < 3 && std::holds_alternative<glm::uvec2>(Config::parameters.p[savedArgName]))) {
 				throwError("parameter not given enough arguments : " + savedArgName);
 			}
 
