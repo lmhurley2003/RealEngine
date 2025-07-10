@@ -103,6 +103,11 @@ private:
     std::vector<VkImage> swapChainImages;
     std::vector<VkImageView> swapChainImageViews;
 
+    VkFormat depthFormat;
+    VkImage depthImage;
+    VkDeviceMemory depthImageMemory;
+    VkImageView depthImageView;
+
     VkDescriptorSetLayout descriptorSetLayout;
     VkPipelineLayout pipelineLayout; //push shader uniform definitions
     VkRenderPass renderPass;
@@ -188,6 +193,8 @@ private:
     static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
         auto app = reinterpret_cast<App*>(glfwGetWindowUserPointer(window));
         app->framebufferResized = true;
+        // app->drawFrame(); TODO reconfigure to still update frame while window is being resize, as of now program stalls.
+        //previous attempt resulted in vector subscript out of range error
     }
 
     std::vector<const char*> getRequiredExtensions();
@@ -209,7 +216,7 @@ private:
     VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
     VkExtent2D chooseSwapChainExtent(const VkSurfaceCapabilitiesKHR& capabilities);
     void createSwapChain();
-    VkImageView createImageView(VkImage image, VkFormat format);
+    VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
     void createSwapChainImageViews();
     void initVulkan();
     void createRenderPass();
@@ -232,7 +239,7 @@ private:
     void freeBuffer(VkBuffer buffer, VkDeviceMemory);
     void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
     void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
-    void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, VkCommandBuffer commandBuffer);
+    void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, VkCommandBuffer commandBuffer = nullptr);
     void createTextureImage(std::string filename); //no need to prefix with texture directory
     void freeMemorySystem();
 
@@ -246,8 +253,9 @@ private:
     void bindVertexBuffer(VkCommandBuffer commandBuffer);
     void bindIndexBuffer(VkCommandBuffer commandBuffer);
 #endif
-    
-
+    VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features, const std::vector<VkFormat>* fallbackCandidates);
+    VkFormat findDepthFormat();
+    void createDepthResources();
     void createUniformBuffers();
     //TODO absract out to create more texture / attachments
     void createTextureImageView();

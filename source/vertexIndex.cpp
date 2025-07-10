@@ -5,15 +5,15 @@
 #ifdef SIMPLE_VERTEX
 //type definitions
 struct Config::Vertex {
-    glm::vec2 pos;
+    glm::vec3 pos;
     glm::vec3 color;
 };
 
 std::vector<Config::Vertex> Config::vertices = {
-    { {-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f} },
-    { {0.5f, -0.5f}, {0.0f, 1.0f, 0.0f} },
-    { {0.5f, 0.5f}, {0.0f, 0.0f, 1.0f} },
-    { {-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f} }
+    { {-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f} },
+    { {0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f} },
+    { {0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f} },
+    { {-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f} }
 };
 
 std::vector<VkVertexInputAttributeDescription> Config::getVertexAttributeDescriptions() {
@@ -21,7 +21,7 @@ std::vector<VkVertexInputAttributeDescription> Config::getVertexAttributeDescrip
 
     attributeDescriptions[0].binding = 0;
     attributeDescriptions[0].location = 0;
-    attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+    attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
     attributeDescriptions[0].offset = offsetof(Vertex, pos);
 
     attributeDescriptions[1].binding = 0;
@@ -34,16 +34,21 @@ std::vector<VkVertexInputAttributeDescription> Config::getVertexAttributeDescrip
 #else
 //type definitions
 struct Config::Vertex {
-    glm::vec2 pos;
+    glm::vec3 pos;
     glm::vec3 color;
     glm::vec2 texCoord;
 };
 
 std::vector<Config::Vertex> Config::vertices = {
-    { {-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f} },
-    { {0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f} },
-    { {0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f} },
-    { {-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f} }
+    {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+    {{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+    {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+    {{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}},
+
+    {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+    {{0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+    {{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+    {{-0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
 };
 
 std::vector<VkVertexInputAttributeDescription> Config::getVertexAttributeDescriptions() {
@@ -51,7 +56,7 @@ std::vector<VkVertexInputAttributeDescription> Config::getVertexAttributeDescrip
 
     attributeDescriptions[0].binding = 0;
     attributeDescriptions[0].location = 0;
-    attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+    attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
     attributeDescriptions[0].offset = offsetof(Vertex, pos);
 
     attributeDescriptions[1].binding = 0;
@@ -95,7 +100,8 @@ struct Config::Index {
 };
 
 std::vector<Config::Index> Config::indices = {
-    {0}, {1}, {2}, {0}, {2}, {3}
+    {0}, {1}, {2}, {0}, {2}, {3},
+    {4}, {5}, {6}, {6}, {7}, {4}
 };
 
 void Config::indexBufferSize(uint32_t* numElements, uint32_t* elementSize) {
