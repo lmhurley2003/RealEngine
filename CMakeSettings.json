@@ -44,7 +44,7 @@
                 },
                 {
                     "name": "DYNAMIC_RENDERING",
-                    "value": "ON",
+                    "value": "OFF",
                     "type": "BOOL"
                 }
             ]
@@ -82,7 +82,7 @@
                 },
                 {
                     "name": "DYNAMIC_RENDERING",
-                    "value": "ON",
+                    "value": "OFF",
                     "type": "BOOL"
                 }
             ]

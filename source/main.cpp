@@ -70,7 +70,7 @@ int main(int argc, char* argv[]) {
                     Input::inputEventsQueue.pop();
                 }
 
-                { //(2) call the current mode's "update" function to deal with elapsed time:
+                { 
                     auto current_time = std::chrono::high_resolution_clock::now();
                     static auto previous_time = current_time;
                     float elapsed = std::chrono::duration<float>(current_time - previous_time).count();

@@ -35,6 +35,7 @@ set(real_headers
     headers/vertexIndex.hpp
     headers/commandArgs.hpp
     headers/scene.hpp
+    headers/jsonParsing.hpp
     headers/input.hpp
     headers/mode.hpp
     headers/playMode.hpp

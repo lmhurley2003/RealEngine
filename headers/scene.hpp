@@ -23,8 +23,9 @@ struct Mesh {
 	uint32_t material = 0; //idx into material array
 };
 
+//TODO graph a vector for static geometry ? How then to handle dynamic geometry that is parented to static geo ? 
 struct Scene {
-	//traverse down tree by looping through next of root, foeach descend into child
+	//traverse down tree by looping through next of root, foreach descend into child
 	Entity graph; //one of roots of scene grpah
 	EnitityComponents<Entity> next{}; 
 	EnitityComponents<Entity> child{}; 
@@ -32,6 +33,6 @@ struct Scene {
 	EnitityComponents<Light> lights{};
 	std::vector<Material> materials{};
 
-	Scene() = default;
+	Scene() = delete; //idk if there is a intuitive concecptualization of a "default scene" as of right now
 	Scene(std::string filename);
 };

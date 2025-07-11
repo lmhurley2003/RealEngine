@@ -87,8 +87,8 @@ struct Input {
     static std::queue<Event> inputEventsQueue;
 
     //callbacks given to GLFW, just add apporpriate event to queue, which will appropriately be handled in mainLoop
-    void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
-    void joystickCallback(int jid, int event);
-    void cursorEnterCallback(GLFWwindow* window, int entered);
-    void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
+    static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
+    static void joystickCallback(int jid, int event);
+    static void cursorEnterCallback(GLFWwindow* window, int entered);
+    static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
 };

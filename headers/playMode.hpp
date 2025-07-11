@@ -85,7 +85,7 @@ struct PlayMode : Mode {
 	//std::array<float, Input::ActionType_t::DEBUG_CONSOLE> actions;
 
 	//scene local to this program instance
-	Scene scene{};
+	Scene scene;
 
 	//functions called by main loop:
 	virtual bool handleEvent(Input::Event const&, glm::uvec2 const& window_size) override;

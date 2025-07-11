@@ -214,6 +214,9 @@ private:
     static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
         auto app = reinterpret_cast<App*>(glfwGetWindowUserPointer(window));
         app->framebufferResized = true;
+        //As of now this is only necessary so that handle_events has access to correct window size
+        app->WIDTH = width;
+        app->HEIGHT = height;
         // app->drawFrame(); TODO reconfigure to still update frame while window is being resize, as of now program stalls.
         //previous attempt resulted in vector subscript out of range error
     }

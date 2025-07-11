@@ -16,6 +16,7 @@
 #define GLM_FORCE_RADIANS
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp> //Get rid of this once we have a way of updating uniform information
+#include "input.hpp"
 
 
 App::App(ParamMap commandLineArguments) {
@@ -48,6 +49,10 @@ void App::initWindow() {
     window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
     glfwSetWindowUserPointer(window, this);
     glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
+    glfwSetKeyCallback(window, (Input::keyCallback));
+    glfwSetJoystickCallback((Input::joystickCallback));
+    glfwSetCursorEnterCallback(window, (Input::cursorEnterCallback));
+    glfwSetMouseButtonCallback(window, (Input::mouseButtonCallback));
 }
 
 std::vector<const char*> App::getRequiredExtensions() {
