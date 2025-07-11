@@ -11,25 +11,47 @@
 #include <set>
 #include <iostream>
 #include <optional>
+#include <array>
 
-#include "config.hpp"
+#include "commandArgs.hpp" //TODO make this a macro to include or not
+#include "mode.hpp"
 
 class App {
 public:
-    App();
+    App() = default;
+    App(ParamMap commandlineParameters);
 #ifdef NDEBUG
     const bool DEBUG = false;
 #else
     const bool DEBUG = true;
 #endif  
-    int DEBUG_LEVEL;
-    bool PRINT_DEBUG;
-    int BASE_WIDTH;
-    int BASE_HEIGHT;
-    int WIDTH;
-    int HEIGHT;
-
-    void run();
+    int WIDTH = 1080;
+    int HEIGHT = 1920;
+    int BASE_WIDTH = 1920;
+    int BASE_HEIGHT = 1080;
+    uint32_t FRAME = 0;
+    // DEBUG_LEVEL
+    enum : uint32_t {
+        NONE = 0,
+        SEVERE = 1, //critical issues
+        MODERATE = 2, //critical issues + validation
+        ALL = 3 //critical issues + validation + sanity checks
+    };
+    struct GlobalConstantParameters { //TODO when eventually get rid of command line arguments
+        bool HEADLESS = false;
+        std::string PHYSICAL_DEVICE = "";
+        bool LIST_PHYSICAL_DEVICES = false;
+        bool SEPERATE_QUEUE_FAMILIES = true;
+        uint32_t DEBUG_LEVEL = 0;
+        bool PRINT_DEBUG = false;
+        std::string SWAPCHAIN_MODE = "fifo";
+        bool FORCE_SHOW_FPS = false;
+        bool COMBINED_INDEX_VERTEX = true;
+        bool STRIPIFY = false;
+        GlobalConstantParameters() = default;
+    };
+    GlobalConstantParameters globalParameters{};
+    
 
 private:
 #ifdef NDEBUG
@@ -56,9 +78,9 @@ private:
        VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
 #endif
     };
-
+public:
     GLFWwindow* window = nullptr;
-    uint32_t FRAME = 0;
+private:
     VkInstance instance;
     VkDebugUtilsMessengerEXT debugMessenger;
     VkSurfaceKHR surface;
@@ -108,7 +130,7 @@ private:
     VkDeviceMemory depthImageMemory;
     VkImageView depthImageView;
 
-    VkDescriptorSetLayout descriptorSetLayout;
+    std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
     VkPipelineLayout pipelineLayout; //push shader uniform definitions
     VkRenderPass renderPass;
     std::unordered_map<PipelineStageT, VkPipeline> pipelines;
@@ -123,7 +145,7 @@ private:
     };
     std::unordered_map<QueueType, VkCommandPool> commandPools;
 
-    static const int MAX_FRAMES_IN_FLIGHT = 2;
+    static constexpr int MAX_FRAMES_IN_FLIGHT = 2;
     std::unordered_map<QueueType, std::vector<VkCommandBuffer>> commandBuffers;
 
     std::vector<VkSemaphore> imageAvailableSemaphores;
@@ -142,20 +164,19 @@ private:
     VkDeviceMemory indexBufferMemory;
 #endif 
 
-    std::vector<VkBuffer> uniformBuffers;
-    std::vector<VkDeviceMemory> uniformBuffersMemory;
-    std::vector<void*> uniformBuffersMapped;
+    std::array<std::vector<VkBuffer>, MAX_FRAMES_IN_FLIGHT>  uniformBuffers{};
+    std::array<std::vector<VkDeviceMemory>, MAX_FRAMES_IN_FLIGHT> uniformBuffersMemory{};
+    std::array<std::vector<void*>, MAX_FRAMES_IN_FLIGHT> uniformBuffersMapped{};
 
     VkImage textureImage;
     VkDeviceMemory textureImageMemory;
     VkImageView textureImageView;
 
-    VkSampler textureImageSampler;
+    std::vector<VkSampler> textureImageSamplers;
 
     VkDescriptorPool descriptorPool;
-    std::vector<VkDescriptorSet> descriptorSets;
- 
-    void initWindow();
+    std::array<std::vector<VkDescriptorSet>, MAX_FRAMES_IN_FLIGHT> descriptorSets{}; //idx with [frame][set#]
+
     static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
         VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
         VkDebugUtilsMessageTypeFlagsEXT messageType,
@@ -164,9 +185,9 @@ private:
         
         App* app = static_cast<App*>(pUserData);
 
-        if (app->DEBUG_LEVEL == 0) return VK_FALSE;
-        if (app->DEBUG_LEVEL <= 1 && messageSeverity <= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) return VK_FALSE;
-        if (app->DEBUG_LEVEL == 2 && messageSeverity <= VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT) return VK_FALSE;
+        if (app->globalParameters.DEBUG_LEVEL == 0) return VK_FALSE;
+        if (app->globalParameters.DEBUG_LEVEL <= 1 && messageSeverity <= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) return VK_FALSE;
+        if (app->globalParameters.DEBUG_LEVEL == 2 && messageSeverity <= VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT) return VK_FALSE;
         std::cerr << "\n(-) Validation layer error of severity--" << string_VkDebugUtilsMessageSeverityFlagBitsEXT(messageSeverity) <<
             "--and type--" << string_VkDebugUtilsMessageTypeFlagsEXT(messageType) << "-- : \n" << pCallbackData->pMessage << "\n";
 
@@ -196,13 +217,16 @@ private:
         // app->drawFrame(); TODO reconfigure to still update frame while window is being resize, as of now program stalls.
         //previous attempt resulted in vector subscript out of range error
     }
-
+public:
+    void initWindow();
+private:
     std::vector<const char*> getRequiredExtensions();
     bool checkValidationLayerSupport();
     void createInstance();
     void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
     void setupDebugMessenger();
     void createSurface();
+
 
     void printQueueFamilies(VkPhysicalDevice device);
     QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
@@ -218,14 +242,10 @@ private:
     void createSwapChain();
     VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
     void createSwapChainImageViews();
+public:
     void initVulkan();
-    void createRenderPass();
-    VkShaderModule createShaderModule(uint32_t i);
-    void createDescriptorSetLayout();
-    void createGraphicsPipeline();
-    void createFramebuffers();
-    void createCommandPools();
-    
+
+private:
     //memory functions defined in vulkanMemory.cpp
     void initializeMemorySystem();
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
@@ -243,6 +263,15 @@ private:
     void createTextureImage(std::string filename); //no need to prefix with texture directory
     void freeMemorySystem();
 
+
+    //functions dependent on Mode of program declared in Mode.hpp
+    void recreateSwapChain();
+    void createRenderPass(const Mode& mode);
+    VkShaderModule createShaderModule(const Mode& mode, uint32_t i);
+    void createDescriptorSetLayouts(const Mode& mode);
+    void createGraphicsPipeline(const Mode& mode);
+    void createFramebuffers();
+    void createCommandPools();
     //defined in vertexIndex.cpp
 #ifdef COMBINED_VERTEX_INDEX_BUFFER
     void createVertexIndexBuffer();
@@ -256,21 +285,24 @@ private:
     VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features, const std::vector<VkFormat>* fallbackCandidates);
     VkFormat findDepthFormat();
     void createDepthResources();
-    void createUniformBuffers();
+    void createUniformBuffers(Mode& mode);
     //TODO absract out to create more texture / attachments
     void createTextureImageView();
-    void createTextureSampler();
-    void createDescriptorPool();
-    void createDescriptorSets();
+    void createTextureSamplers(Mode& mode);
+    void createDescriptorPool(const Mode& mode);
+    void createDescriptorSets(const Mode& mode);
     void createCommandBuffers();
     void createSynchObjects();
-    void initProgram();
+public:
+    void initProgram(Mode& mode);
 
-    void recreateSwapChain();
+private:
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
+public:
     void drawFrame();
-    void mainLoop();
-
+private:
     void cleanupSwapChain();
-    void cleanup();
+public:
+    void cleanupProgram();
+    void cleanupVulkan();
 };

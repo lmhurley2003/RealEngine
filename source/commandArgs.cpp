@@ -2,7 +2,6 @@
 #include <iostream>
 
 #include <commandArgs.hpp>
-#include <config.hpp>
 
 void throwError(std::string message) {
 	std::cerr << message << std::endl;
@@ -16,8 +15,7 @@ bool isParam(char* arg) {
 //TODO : make some of the more expesnsive arguments compiler arguments
 
 // paramater names and default values defined here
-namespace Config {
-	ParamMap parameters = { {
+ParamMap commandLineParameters = { {
 		{"resolution", glm::uvec2{1920, 1080}},
 		{"scene", "default"},
 		{"headless", false},
@@ -39,23 +37,22 @@ namespace Config {
 		{"force-show-fps", false},
 		{"combined-vertex-index", false}
 	}
-	};
+};
 
-	bool ParamMap::getBool(std::string s) {
-		return std::get<0>(p[s]);
-	}
+bool ParamMap::getBool(std::string s) {
+	return std::get<0>(p[s]);
+}
 
-	std::string ParamMap::getString(std::string s) {
-		return std::get<1>(p[s]);
-	}
+std::string ParamMap::getString(std::string s) {
+	return std::get<1>(p[s]);
+}
 
-	int ParamMap::getInt(std::string s) {
-		return std::get<2>(p[s]);
-	}
+int ParamMap::getInt(std::string s) {
+	return std::get<2>(p[s]);
+}
 
-	glm::uvec2 ParamMap::getVec(std::string s) {
-		return std::get<3>(p[s]);
-	}
+glm::uvec2 ParamMap::getVec(std::string s) {
+	return std::get<3>(p[s]);
 }
 
 // ================================================================================================
@@ -69,7 +66,7 @@ void parseCommandLine(int argc, char* argv[]) {
 		char* arg = argv[i];
 		if (isParam(arg)) {
 			std::string savedArgName = std::string(arg).erase(0, 2);
-			if (!Config::parameters.p.count(savedArgName)) throwError("undefined parameter type : " + savedArgName);
+			if (!commandLineParameters.p.count(savedArgName)) throwError("undefined parameter type : " + savedArgName);
 
 
 			size_t skipLen = 1;
@@ -77,27 +74,27 @@ void parseCommandLine(int argc, char* argv[]) {
 				std::string modifer = std::string(argv[i + skipLen]);
 
 				//setting paramters and converting from string if necessary
-				if (std::holds_alternative<std::string>(Config::parameters.p[savedArgName])) Config::parameters.p[savedArgName] = modifer;
-				else if (std::holds_alternative<int>(Config::parameters.p[savedArgName])) Config::parameters.p[savedArgName] = stoi(modifer);
-				else if (std::holds_alternative<glm::uvec2>(Config::parameters.p[savedArgName])) std::get<3>(Config::parameters.p[savedArgName])[static_cast<glm::uvec2::length_type>(skipLen - 1)] = stoi(modifer);
+				if (std::holds_alternative<std::string>(commandLineParameters.p[savedArgName])) commandLineParameters.p[savedArgName] = modifer;
+				else if (std::holds_alternative<int>(commandLineParameters.p[savedArgName])) commandLineParameters.p[savedArgName] = stoi(modifer);
+				else if (std::holds_alternative<glm::uvec2>(commandLineParameters.p[savedArgName])) std::get<3>(commandLineParameters.p[savedArgName])[static_cast<glm::uvec2::length_type>(skipLen - 1)] = stoi(modifer);
 
 				skipLen++;
 			}
 
-			if ((skipLen > 1 && std::holds_alternative<bool>(Config::parameters.p[savedArgName])) ||
-				(skipLen > 2 && std::holds_alternative<std::string>(Config::parameters.p[savedArgName])) ||
-				(skipLen > 2 && std::holds_alternative<int>(Config::parameters.p[savedArgName])) ||
-				(skipLen > 3 && std::holds_alternative<glm::uvec2>(Config::parameters.p[savedArgName]))
+			if ((skipLen > 1 && std::holds_alternative<bool>(commandLineParameters.p[savedArgName])) ||
+				(skipLen > 2 && std::holds_alternative<std::string>(commandLineParameters.p[savedArgName])) ||
+				(skipLen > 2 && std::holds_alternative<int>(commandLineParameters.p[savedArgName])) ||
+				(skipLen > 3 && std::holds_alternative<glm::uvec2>(commandLineParameters.p[savedArgName]))
 				) {
 				throwError("parameter given too many arguments" + savedArgName);
 			}
-			else if ((skipLen < 2 && std::holds_alternative<std::string>(Config::parameters.p[savedArgName])) ||
-				(skipLen < 2 && std::holds_alternative<int>(Config::parameters.p[savedArgName])) ||
-				(skipLen < 3 && std::holds_alternative<glm::uvec2>(Config::parameters.p[savedArgName]))) {
+			else if ((skipLen < 2 && std::holds_alternative<std::string>(commandLineParameters.p[savedArgName])) ||
+				(skipLen < 2 && std::holds_alternative<int>(commandLineParameters.p[savedArgName])) ||
+				(skipLen < 3 && std::holds_alternative<glm::uvec2>(commandLineParameters.p[savedArgName]))) {
 				throwError("parameter not given enough arguments : " + savedArgName);
 			}
 
-			if (std::holds_alternative<bool>(Config::parameters.p[savedArgName])) Config::parameters.p[savedArgName] = true;
+			if (std::holds_alternative<bool>(commandLineParameters.p[savedArgName])) commandLineParameters.p[savedArgName] = true;
 
 			i += skipLen - 1;
 		}
@@ -106,7 +103,7 @@ void parseCommandLine(int argc, char* argv[]) {
 }
 
 void printParameters() {
-	for (auto it = Config::parameters.p.cbegin(); it != Config::parameters.p.cend(); ++it)
+	for (auto it = commandLineParameters.p.cbegin(); it != commandLineParameters.p.cend(); ++it)
 	{
 		std::cout << it->first << ": ";
 		if (std::holds_alternative<bool>(it->second)) std::cout << (std::get<0>(it->second) ? "true" : "false");

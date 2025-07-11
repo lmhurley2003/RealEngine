@@ -31,23 +31,30 @@ link_libraries (
 )
 
 set(real_headers
-    headers/commandArgs.hpp
-    headers/config.hpp
-    headers/scene.hpp
-    headers/utils.hpp
     headers/vulkanCore.hpp
+    headers/vertexIndex.hpp
+    headers/commandArgs.hpp
+    headers/scene.hpp
+    headers/input.hpp
+    headers/mode.hpp
+    headers/playMode.hpp
+    headers/entityComponent.hpp
+    headers/utils.hpp
 )
 
-file(GLOB SOURCE_FILES "shaders/embedded/*.cpp")
+file(GLOB SOURCE_EMBEDDED_SHADERS "shaders/embedded/*.cpp")
 set(real_source
     source/commandArgs.cpp
-    source/config.cpp
+    source/entityComponent.cpp
+    source/input.cpp
     source/scene.cpp
+    source/mode.cpp
+    source/playMode.cpp
     source/utils.cpp
     source/vertexIndex.cpp
     source/vulkanMemory.cpp
     source/vulkanCore.cpp
-    ${SOURCE_FILES}
+    ${SOURCE_EMBEDDED_SHADERS}
 )
 
 # Compile core real library
@@ -56,7 +63,7 @@ add_library(real_core STATIC
     ${real_source}
 )
 
-add_executable(real source/main.cpp "source/vulkanMemory.cpp"   "source/vertexIndex.cpp")
+add_executable(real source/main.cpp)
 
 target_link_libraries(real real_core)
 

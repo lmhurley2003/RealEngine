@@ -1,0 +1,8 @@
+
+class Material {
+public:
+
+
+private:
+};
+

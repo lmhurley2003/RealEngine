@@ -4,9 +4,10 @@ Refactorable and multipurpose realtime 3D engine made in Vulkan
 # Planned Next Steps
 
 - [x] Hello Triangle
-- [ ] Reconfigure to use CMake and CMRC
+- [ ] Reconfigure to use CMake
+- [ ] Reconfigure to use CMRC ?
 - [ ] Read from .s72 files, save scene / program state in binary for fast reload
-- [ ] Combine vertex and index buffers
+- [x] Combine vertex and index buffers
     - "Driver developers recommend that you also store multiple buffers, like the vertex and index buffer, into a single VkBuffer and use offsets in commands like vkCmdBindVertexBuffers"
     - resource: https://developer.nvidia.com/vulkan-memory-management
 - [ ] Allow for different vertex types within same scene ?
@@ -53,14 +54,14 @@ Refactorable and multipurpose realtime 3D engine made in Vulkan
         -Could this work with occlusion culling ? Maybe occlusion culling would be faster 
          CPU-side since we probably have a small, fixed-size number of screen-space aligned occluders
     -Maybe actually use extent feature ?
-    - The main question I am havving is that the most obvious solution is to have each window render to an offscreen image buffer,
-    then place that image buffer on the screen. But there's something that feels sort fo icky about that, and feels like I could instead 
+    - The main question I am having is that the most obvious solution is to have each window render to an offscreen image buffer,
+    then place that image buffer on the screen. But there's something that feels sort of icky about that, and feels like I could instead 
     just render things striaght to screen with a throughtful use of depth clearing, passing in offset of window with push constants, and/or
-    using dynamic extent
+    using dynamic viewport extent
 - [ ] Maybe release each seperate "program" on Itch.io, combine in final game with meta layer
     - If I want to run games in browser, proabably need abstraction to use different grpahics APIs ie WebGL
-- [ ] Probably should end up pre redering SOME stuff (ie pinball background), but want to prerender as little as \
- possible just from a stand point of creative extensibility (subverting medium expectations), like with the \
+- [ ] Probably should end up pre redering SOME stuff (ie pinball background), but want to prerender as little as
+ possible just from a stand point of creative extensibility (subverting medium expectations), like with the
 "prerendered" background that ends up moving
 - [ ] Text box class with seperate renderes (ie bitmap/SDF or raymarched)
 - [ ] How to make lower res ? render to offsceren texture, upscale ? IN general, if I want to make thigns lower
@@ -109,12 +110,21 @@ lowering multisampling samples, in general purposfilly alaisging stuff
 program resolution. 
 - Add a lot of small interactive touches. Like think about Pajama Sam, there's not a lot of complex gamepley yet the
 players are propelled by small moments of interactivty and humor
-- 
+- Maybe make a dedicated "streamer mode" that turns off effects that don't play well with twitch/youtube compression (ie dithering)
 
-#V VMA allocator notes
-- all allocations made from larger VkDevice Memory allocation 
+# Story Principles
+- maybe make the "Benefactor" a satanist? Like ultimately this use of scripture will turn to something corrupt, so maybe
+make the corruption explicity by the use of ritual / Judge Holden-isms, ie gnosticism.
+    -Fuck maybe just make this a game about gnosticism? Tower of Babel to kill the fake god?
+    -"Good ending" is making Benefactor face that there is no true god, just the community we have around us? idk
+    maybe will come off as a Reddit atheism critique of gnosticism. If there's one thing I do want, is that I don;t want to
+    where too muchof my own views on my sleeve. I do not want this to feel like Heretic
+    -Benefactor as a name is getting dry, maybe make it a throughtful Biblical reference, ie a judge like Samson   
+
+#  VMA allocator notes
+- all allocations made from larger VkDevice Memory allocations 
 - can make dedicated allocation block with VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, but
-library will do this automatically under certain circumstances (ie )
+library will do this automatically under certain circumstances (ie large block size, diff mem requirements)
 
 # Pinball
 - [ ] Likely a good start for a proof of concept
@@ -139,5 +149,6 @@ other compilers
     - C-style programming
 - [ ] Screenspace ambient occlusion https://research.nvidia.com/sites/default/files/pubs/2012-06_Scalable-Ambient-Obscurance/McGuire12SAO.pdf
 - [ ] Dependency graphs, buffer management, multithreading practices https://www.youtube.com/watch?v=mdPeXJ0eiGc&t=902s
+- [ ] Maybe better entity component system (congitgous memory components) https://austinmorlan.com/posts/entity_component_system/
 - [x] Billy Basso interview  : https://youtu.be/YngwUu4bXR4?si=yCt0EJOj-UvZdhzP
     - Use MIDI to tweak variables ?

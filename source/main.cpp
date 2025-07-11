@@ -1,10 +1,13 @@
+#include <iostream>
+#include <stdexcept>
+#include <memory>
+#include <chrono>
+#include <cstdlib>
 
 #include "vulkanCore.hpp"
 #include "commandArgs.hpp"
-
-#include <iostream>
-#include <stdexcept>
-#include <cstdlib>
+#include "mode.hpp"
+#include "playMode.hpp"
 
 static const std::string helpMessage = " To run application, arguments must formatted as follows\n : \
 --REQUIRED---------------------------------------------------------------------------------------\n \
@@ -48,11 +51,43 @@ int main(int argc, char* argv[]) {
     }
 
     {
-        App app = App();
-        if (app.DEBUG && app.DEBUG_LEVEL >= ALL && app.PRINT_DEBUG) printParameters();
+        App app = App(commandLineParameters);
+        if (app.DEBUG && app.globalParameters.DEBUG_LEVEL >= ALL_OUTPUT && app.globalParameters.PRINT_DEBUG) printParameters();
+
+        Mode::set_current(std::make_shared<PlayMode>());
 
         try {
-            app.run();
+            app.initWindow();
+            app.initVulkan();
+            app.initProgram(*Mode::current);
+            while (!glfwWindowShouldClose(app.window)) {
+                app.FRAME++;
+                glfwPollEvents();
+
+                //process user input
+                while (!Input::inputEventsQueue.empty()) {
+                    if(Mode::current) Mode::current->handleEvent(Input::inputEventsQueue.front(), {app.WIDTH, app.HEIGHT});
+                    Input::inputEventsQueue.pop();
+                }
+
+                { //(2) call the current mode's "update" function to deal with elapsed time:
+                    auto current_time = std::chrono::high_resolution_clock::now();
+                    static auto previous_time = current_time;
+                    float elapsed = std::chrono::duration<float>(current_time - previous_time).count();
+                    previous_time = current_time;
+
+                    //if frames are taking a very long time to process,
+                    //lag to avoid spiral of death:
+                    elapsed = std::min(0.1f, elapsed);
+
+                    Mode::current->update(elapsed);
+                    if (!Mode::current) break;
+                }
+
+                app.drawFrame(); //TODO eventually bring into Mode
+            }
+            app.cleanupProgram();
+            app.cleanupVulkan();
         }
         catch (const std::exception& e) {
             std::cerr << e.what() << std::endl;

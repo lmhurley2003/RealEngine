@@ -10,27 +10,29 @@
 #include <array>
 #include <map>
 
-#include "vulkanCore.hpp"
+//#include "vulkanCore.hpp"
+#include "vertexIndex.hpp"
 #include "utils.hpp"
+#define GLM_FORCE_RADIANS
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp> //Get rid of this once we have a way of updating uniform information
 
-void App::run() {
-    initWindow();
-    initVulkan();
-    initProgram();
-    mainLoop();
-    cleanup();
- }
 
-App::App() {
-    BASE_WIDTH = 1080;
-    BASE_HEIGHT = 720;
-    WIDTH = (Config::parameters.getVec("resolution")).x;
-    HEIGHT = (Config::parameters.getVec("resolution")).y;
+App::App(ParamMap commandLineArguments) {
+    if (commandLineArguments.p.empty()) return;
 
-    DEBUG_LEVEL = Config::parameters.getInt("debug-level");
-    PRINT_DEBUG = Config::parameters.getBool("print-debug-output");
+    WIDTH = commandLineArguments.getVec("resolution").x;
+    HEIGHT = commandLineArguments.getVec("resolution").y;
 
-    FRAME = 0;
+    globalParameters.HEADLESS = commandLineArguments.getBool("headless");
+    globalParameters.PHYSICAL_DEVICE = commandLineArguments.getString("physical-device");
+    globalParameters.LIST_PHYSICAL_DEVICES = commandLineArguments.getBool("list-physical-devices");
+    globalParameters.SEPERATE_QUEUE_FAMILIES = commandLineArguments.getBool("seperate-queue-families");
+    globalParameters.DEBUG_LEVEL = commandLineArguments.getInt("debug-level");
+    globalParameters.PRINT_DEBUG = commandLineArguments.getBool("print-debug-output");
+    globalParameters.SWAPCHAIN_MODE = commandLineArguments.getString("swapchain-mode");
+    globalParameters.FORCE_SHOW_FPS = commandLineArguments.getBool("force-show-fps");
+    globalParameters.COMBINED_INDEX_VERTEX = commandLineArguments.getBool("combined-vertex-index");
 }
 
 void App::initWindow() {
@@ -113,7 +115,7 @@ void App::createInstance() {
 
         populateDebugMessengerCreateInfo(debugCreateInfo);
         createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debugCreateInfo;
-    } else if (Config::parameters.getBool("force-show-fps")) {
+    } else if (globalParameters.FORCE_SHOW_FPS) {
         createInfo.enabledLayerCount = 1;
         createInfo.ppEnabledLayerNames = &fpsLayer;
     }
@@ -127,26 +129,26 @@ void App::createInstance() {
     std::vector<VkExtensionProperties> allAvailableExtensions(allAvailableExtensionCount);
     vkEnumerateInstanceExtensionProperties(nullptr, &allAvailableExtensionCount, allAvailableExtensions.data());
 
-    if (DEBUG && DEBUG_LEVEL >= SEVERE) {
+    if (DEBUG && globalParameters.DEBUG_LEVEL >= SEVERE) {
         std::unordered_set<std::string> allAvailableExtensionsSet;
-        if (PRINT_DEBUG) std::cout << "\nAvailable extensions\n" << std::endl;
+        if (globalParameters.PRINT_DEBUG) std::cout << "\nAvailable extensions\n" << std::endl;
      
 
         for (const auto& extension : allAvailableExtensions) {
-            if (PRINT_DEBUG) std::cout << extension.extensionName << std::endl;
+            if (globalParameters.PRINT_DEBUG) std::cout << extension.extensionName << std::endl;
             allAvailableExtensionsSet.insert(extension.extensionName);
         }
         
-        if (PRINT_DEBUG) std::cout << "\nChecking GLFW extensions : \n" << std::endl;
+        if (globalParameters.PRINT_DEBUG) std::cout << "\nChecking GLFW extensions : \n" << std::endl;
         for (uint32_t i = 0; i < extensions.size(); i++) {
             std::string extension = std::string(extensions[i]);
             if (!allAvailableExtensionsSet.count(extension)) {
                 throw std::runtime_error("Necessray glfw extension " + extension + "not in list of available Vulkan extensions!");
             }
-            if (PRINT_DEBUG) std::cout << extension << std::endl;
+            if (globalParameters.PRINT_DEBUG) std::cout << extension << std::endl;
 
         }
-        if (PRINT_DEBUG) std::cout << "\n" << std::endl;
+        if (globalParameters.PRINT_DEBUG) std::cout << "\n" << std::endl;
     }
 
     if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
@@ -207,7 +209,7 @@ void App::printQueueFamilies(VkPhysicalDevice device) {
 }
 
 App::QueueFamilyIndices App::findQueueFamilies(VkPhysicalDevice device) {
-    if (DEBUG && PRINT_DEBUG && DEBUG_LEVEL >= ALL) printQueueFamilies(device);
+    if (DEBUG && globalParameters.PRINT_DEBUG && globalParameters.DEBUG_LEVEL >= ALL) printQueueFamilies(device);
     QueueFamilyIndices indices;
 
     uint32_t queueFamilyCount = 0;
@@ -226,10 +228,9 @@ App::QueueFamilyIndices App::findQueueFamilies(VkPhysicalDevice device) {
     std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
     vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
 
-    static const bool seperateQueues = Config::parameters.getBool("separate-queue-families");
     int i = 0;
     for (const auto& queueFamily : queueFamilies) {
-        if (!seperateQueues) {
+        if (!globalParameters.SEPERATE_QUEUE_FAMILIES) {
             if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) indices.graphicsFamily = i;
             if (queueFamily.queueFlags & VK_QUEUE_TRANSFER_BIT) indices.transferFamily = i;
             if (queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT) indices.computeFamily = i;
@@ -284,7 +285,7 @@ bool App::checkDeviceExtensionSupport(VkPhysicalDevice device) {
     uint32_t versionPatch = VK_API_VERSION_PATCH(vulkanVersion);
 
 
-    if (DEBUG && PRINT_DEBUG && DEBUG_LEVEL >= ALL) {
+    if (DEBUG && globalParameters.PRINT_DEBUG && globalParameters.DEBUG_LEVEL >= ALL) {
         std::cout << "\nUsing vulkan version " << versionMajor << "." << versionMinor << "." << versionPatch << std::endl;
     }
 
@@ -342,15 +343,14 @@ uint32_t App::rateDeviceSuitability(const VkPhysicalDevice& device) {
     VkPhysicalDeviceProperties deviceProperties;
     vkGetPhysicalDeviceProperties(device, &deviceProperties);
 
-    if (deviceProperties.deviceName == Config::parameters.getString("physical-device")) return std::numeric_limits<uint32_t>::max();
+    if (deviceProperties.deviceName == globalParameters.PHYSICAL_DEVICE) return std::numeric_limits<uint32_t>::max();
 
     uint32_t score = 0;
     if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) score += 1000;
 
     score += deviceProperties.limits.maxImageDimension2D;
 
-    static const bool printDevice = Config::parameters.getBool("list-physical-devices");
-    if (DEBUG && (printDevice || DEBUG_LEVEL >= SEVERE)) {
+    if (DEBUG && (globalParameters.LIST_PHYSICAL_DEVICES || globalParameters.DEBUG_LEVEL >= SEVERE)) {
         std::cout << "Available device: " << deviceProperties.deviceName << std::endl;
     }
 
@@ -381,7 +381,7 @@ void App::determineOptionalExtensions(const VkPhysicalDevice& device) {
     uint32_t versionPatch = VK_API_VERSION_PATCH(vulkanVersion);
 
 
-    if (DEBUG && PRINT_DEBUG && DEBUG_LEVEL >= ALL) {
+    if (DEBUG && globalParameters.PRINT_DEBUG && globalParameters.DEBUG_LEVEL >= ALL) {
         std::cout << "\nUsing vulkan version " << versionMajor << "." << versionMinor << "." << versionPatch << std::endl;
     }
 
@@ -446,15 +446,15 @@ void App::pickPhysicalDevice() {
 
     determineOptionalExtensions(physicalDevice);
 
-    if (DEBUG && PRINT_DEBUG && DEBUG_LEVEL >= ALL) {
+    if (DEBUG && globalParameters.PRINT_DEBUG && globalParameters.DEBUG_LEVEL >= ALL) {
         VkPhysicalDeviceProperties deviceProperties;
         vkGetPhysicalDeviceProperties(physicalDevice, &deviceProperties);
         std::cout << "--Chosen device : " << deviceProperties.deviceName << std::endl;
     }
 
     queueFamilyIndices = findQueueFamilies(physicalDevice);
-    if (DEBUG && DEBUG_LEVEL >= 2) assert(queueFamilyIndices.isComplete());
-    if (DEBUG && PRINT_DEBUG && DEBUG_LEVEL >= 3) {
+    if (DEBUG && globalParameters.DEBUG_LEVEL >= 2) assert(queueFamilyIndices.isComplete());
+    if (DEBUG && globalParameters.PRINT_DEBUG && globalParameters.DEBUG_LEVEL >= 3) {
         std::cout << "\n";
         std::cout << "Graphics queue family index: " << queueFamilyIndices.graphics() << "\n";
         std::cout << "Transfer queue family index: " << queueFamilyIndices.transfer() << "\n";
@@ -522,8 +522,8 @@ void App::createLogicalDevice() {
 
     for (auto& entry : queues) {
         vkGetDeviceQueue(device, entry.first, 0, &(entry.second));
-        if (DEBUG && DEBUG_LEVEL >= MODERATE) assert(entry.second != VK_NULL_HANDLE);
-        if (DEBUG && PRINT_DEBUG && DEBUG_LEVEL >= ALL) {
+        if (DEBUG && globalParameters.DEBUG_LEVEL >= MODERATE) assert(entry.second != VK_NULL_HANDLE);
+        if (DEBUG && globalParameters.PRINT_DEBUG && globalParameters.DEBUG_LEVEL >= ALL_OUTPUT) {
             std::cout << "Queue with index " << entry.first << " has location " << entry.second << std::endl;
         }
     }
@@ -544,8 +544,7 @@ VkPresentModeKHR App::chooseSwapPresentMode(const std::vector<VkPresentModeKHR>&
     std::unordered_map<std::string, VkPresentModeKHR> modes = {
         {"immediate", VK_PRESENT_MODE_IMMEDIATE_KHR}, {"fifo", VK_PRESENT_MODE_FIFO_KHR},
         {"fifo-relaxed", VK_PRESENT_MODE_FIFO_RELAXED_KHR}, {"mailbox", VK_PRESENT_MODE_MAILBOX_KHR} };
-    std::string targetModeString = Config::parameters.getString("swapchain-mode");
-    VkPresentModeKHR targetMode = modes[targetModeString];
+    VkPresentModeKHR targetMode = modes[globalParameters.SWAPCHAIN_MODE];
     for (const auto& availablePresentMode : availablePresentModes) {
         if (availablePresentMode == targetMode) {
             return targetMode;
@@ -585,7 +584,7 @@ void App::createSwapChain() {
     if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount) {
         imageCount = swapChainSupport.capabilities.maxImageCount;
     }
-    if (DEBUG && PRINT_DEBUG && DEBUG_LEVEL >= ALL) {
+    if (DEBUG && globalParameters.PRINT_DEBUG && globalParameters.DEBUG_LEVEL >= ALL_OUTPUT) {
         std::cout << "Image count of swapchain : " << imageCount << std::endl;
     }
     VkSwapchainCreateInfoKHR createInfo{};
@@ -599,7 +598,7 @@ void App::createSwapChain() {
     createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; //TODO change to do post-processing like tonemapping
 
     std::vector<uint32_t> indices = queueFamilyIndices.indices();
-    if (DEBUG && DEBUG_LEVEL >= ALL) assert(indices.size() >= 1);
+    if (DEBUG && globalParameters.DEBUG_LEVEL >= ALL_OUTPUT) assert(indices.size() >= 1);
     if (indices.size() == 1) {
         createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
         createInfo.queueFamilyIndexCount = 0;
@@ -722,14 +721,15 @@ void App::createDepthResources() {
 }
 
 //TODO add more attachments / subpasses / depnedencies for subpasses / deferred
-void App::createRenderPass() {
+//TODO add support for multisampling
+void App::createRenderPass(const Mode& mode) {
     std::unordered_map<int, VkSampleCountFlagBits> sampleMap =
     { {1, VK_SAMPLE_COUNT_1_BIT}, {2, VK_SAMPLE_COUNT_2_BIT}, {4, VK_SAMPLE_COUNT_4_BIT},
      {8, VK_SAMPLE_COUNT_8_BIT}, {16, VK_SAMPLE_COUNT_16_BIT}, {32, VK_SAMPLE_COUNT_32_BIT},
     {64, VK_SAMPLE_COUNT_64_BIT} };
     VkAttachmentDescription colorAttachment{};
     colorAttachment.format = swapChainImageFormat;
-    colorAttachment.samples = sampleMap[Config::parameters.getInt("multisamples")];
+    colorAttachment.samples = sampleMap[mode.modeParameters.MULTI_SAMPLES];
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE; //TODO, maybe unnecessary if doing headless?
     colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -745,7 +745,7 @@ void App::createRenderPass() {
 
     VkAttachmentDescription depthAttachment{};
     depthAttachment.format = findDepthFormat();
-    depthAttachment.samples = sampleMap[Config::parameters.getInt("multisamples")];
+    depthAttachment.samples = sampleMap[mode.modeParameters.MULTI_SAMPLES];
     depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -806,11 +806,12 @@ void App::createRenderPass() {
     return shaderModule;
 } */
 
-VkShaderModule App::createShaderModule(uint32_t i) {
+
+VkShaderModule App::createShaderModule(const Mode& mode, uint32_t i) {
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    createInfo.codeSize = Config::shaderSizes[i]; 
-    createInfo.pCode = reinterpret_cast<const uint32_t*>(Config::shaders[i]);
+    createInfo.codeSize = mode.shaderSizes[i]; 
+    createInfo.pCode = reinterpret_cast<const uint32_t*>(mode.shaders[i]);
     VkShaderModule shaderModule;
     if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create shader module!");
@@ -818,47 +819,65 @@ VkShaderModule App::createShaderModule(uint32_t i) {
     return shaderModule;
 }
 
-void App::createDescriptorSetLayout() {
-    VkDescriptorSetLayoutBinding uboLayoutBinding{};
-    uboLayoutBinding.binding = 0;
-    uboLayoutBinding.descriptorCount = 1;
-    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    uboLayoutBinding.stageFlags = Config::uniformBufferObjectStages();
-    uboLayoutBinding.pImmutableSamplers = nullptr;
+void App::createDescriptorSetLayouts(const Mode& mode) {
+    //TODO maybe unnecessary since values are already mapped
+    std::unordered_map<DescriptorTypeT, VkDescriptorType> descriptorNameMap = {
+        {SAMPLER, VK_DESCRIPTOR_TYPE_SAMPLER},
+        {COMBINED_IMAGE_SAMPLER, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER},
+        {SAMPLED_IMAGE, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE},
+        {STORAGE_IMAGE, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE},
+        {UNIFORM_TEXEL_BUFFER, VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER},
+        {STORAGE_TEXEL_BUFFER, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER},
+        {UNIFORM_BUFFER, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER},
+        {STORAGE_BUFFER, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER},
+        {UNIFORM_BUFFER_DYNAMIC, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC},
+        {STORAGE_BUFFER_DYNAMIC, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC}
+    };
 
-    VkDescriptorSetLayoutBinding samplerLayoutBinding{};
-    samplerLayoutBinding.binding = 1;
-    samplerLayoutBinding.descriptorCount = 1;
-    samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    samplerLayoutBinding.pImmutableSamplers = nullptr;
-    samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-    
-    std::array<VkDescriptorSetLayoutBinding, 2> bindings = { uboLayoutBinding, samplerLayoutBinding };
-    VkDescriptorSetLayoutCreateInfo layoutInfo{};
-    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
-    layoutInfo.pBindings = bindings.data();
+    for (uint32_t i = 0; i < mode.descriptorBindings.size(); i++) {
+        std::vector<VkDescriptorSetLayoutBinding> bindings;
 
-    if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create descriptor set layout!");
+        VkDescriptorSetLayoutBinding binding{};
+        
+        for (uint32_t j = 0; j < mode.descriptorBindings[i].size(); j++) {
+            DescriptorBinding myBinding = mode.descriptorBindings[i][j];
+            binding.binding = j;
+            binding.descriptorCount = myBinding.count;
+            assert(descriptorNameMap.count(myBinding.type));
+            binding.descriptorType = descriptorNameMap[myBinding.type];
+            binding.stageFlags = myBinding.stages;
+            binding.pImmutableSamplers = nullptr;
+
+            bindings.emplace_back(binding);
+        }
+
+        VkDescriptorSetLayoutCreateInfo layoutInfo{};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+        layoutInfo.pBindings = bindings.data();
+
+        descriptorSetLayouts.emplace_back(VkDescriptorSetLayout{});
+        if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &(descriptorSetLayouts[i])) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create descriptor set layout!");
+        }
     }
 
 };
 
 //TODO TODO use dynamic rendering instead of renderpass system
-void App::createGraphicsPipeline() {
+void App::createGraphicsPipeline(const Mode& mode) {
     std::vector<VkShaderModule> shaderModules;
-    for (uint32_t i = 0; i < Config::shaders.size(); i++) {
-        shaderModules.emplace_back(createShaderModule(i));
+    for (uint32_t i = 0; i < mode.shaders.size(); i++) {
+        shaderModules.emplace_back(createShaderModule(mode, i));
     }
 
     std::unordered_map<ShaderStageT, VkShaderStageFlagBits> flags = 
         { {VERTEX, VK_SHADER_STAGE_VERTEX_BIT}, {FRAGMENT, VK_SHADER_STAGE_FRAGMENT_BIT},
-          {TESSELATION_CONTROL, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT }, 
-          {TESSELATION_EVALUATION, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT },
+          {TESSELLATION_CONTROL, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT },
+          {TESSELLATION_EVALUATION, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT },
           {GEOMETRY, VK_SHADER_STAGE_GEOMETRY_BIT}, {MESH, VK_SHADER_STAGE_MESH_BIT_EXT},
           {COMPUTE, VK_SHADER_STAGE_COMPUTE_BIT},
-          {CLUSTER_CULLING, VK_SHADER_STAGE_CLUSTER_CULLING_BIT_HUAWEI } };
+          {CLUSTER_CULLING_HUAWEI, VK_SHADER_STAGE_CLUSTER_CULLING_BIT_HUAWEI } };
 
     std::vector<VkDynamicState> dynamicStates = {
         VK_DYNAMIC_STATE_VIEWPORT,
@@ -902,9 +921,9 @@ void App::createGraphicsPipeline() {
     colorBlending.pAttachments = &colorBlendAttatchment;
 
     //main loop
-    static bool derivePipelines = Config::parameters.getBool("derive-pipelines");
+    static bool derivePipelines = mode.modeParameters.DERIVE_PIPELINES;
     std::vector<VkGraphicsPipelineCreateInfo> pipelineInfos{};
-    pipelineInfos.reserve(Config::shaderStages.size());
+    pipelineInfos.reserve(mode.shaderStages.size());
     std::vector<VkPipelineShaderStageCreateInfo> stages;
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
@@ -916,7 +935,7 @@ void App::createGraphicsPipeline() {
     std::vector<VkVertexInputAttributeDescription> attributeDescriptions{};
 
     uint32_t i = 0;
-    for (auto& stage : Config::shaderStages) {
+    for (auto& stage : mode.shaderStages) {
         uint32_t stageIdx = i;
         for (const auto& shader : stage.shaderInfos) {
             VkPipelineShaderStageCreateInfo shaderStageInfo{};
@@ -929,8 +948,9 @@ void App::createGraphicsPipeline() {
         }
         //pipeline layout info
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        pipelineLayoutInfo.setLayoutCount = (stage.type == MAIN_RENDER) ? 1 : 0;
-        pipelineLayoutInfo.pSetLayouts = (stage.type == MAIN_RENDER) ? &descriptorSetLayout : nullptr;
+        //TODO change shaderStages variable in mode.hpp to specifiy which descriptor set layouts instead of using all
+        pipelineLayoutInfo.setLayoutCount = (stage.type == MAIN_RENDER) ? descriptorSetLayouts.size() : 0;
+        pipelineLayoutInfo.pSetLayouts = (stage.type == MAIN_RENDER) ? descriptorSetLayouts.data() : nullptr;
         pipelineLayoutInfo.pushConstantRangeCount = 0;
         pipelineLayoutInfo.pPushConstantRanges = nullptr;
 
@@ -939,8 +959,8 @@ void App::createGraphicsPipeline() {
         }
 
         //vertexInput
-        bindingDescription = Config::getVertexBindingDescription();
-        attributeDescriptions = Config::getVertexAttributeDescriptions();
+        bindingDescription = getVertexBindingDescription();
+        attributeDescriptions = getVertexAttributeDescriptions();
 
         vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
         vertexInputInfo.vertexBindingDescriptionCount = 1;
@@ -950,7 +970,7 @@ void App::createGraphicsPipeline() {
 
         //inputAssembly
         inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-        static bool stripify = Config::parameters.getBool("stripify");
+        static bool stripify = mode.modeParameters.STRIPIFY; 
         inputAssembly.primitiveRestartEnable = ((stripify && (stage.type == MAIN_RENDER)) || (stage.type == DEBUG_DRAW)) ? VK_TRUE : VK_FALSE;
         if (stripify && stage.type == MAIN_RENDER)  inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP; //restart index is 0xFFFFFFFF
         else if (stage.type == DEBUG_DRAW) inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP; //like tri strip, restart is 0xFFFFFFFF
@@ -1019,19 +1039,19 @@ void App::createGraphicsPipeline() {
         i++;
     }
 
-    if (DEBUG && DEBUG_LEVEL >= MODERATE) {
-        assert(pipelineInfos.size() == Config::shaderStages.size());
+    if (DEBUG && globalParameters.DEBUG_LEVEL >= MODERATE) {
+        assert(pipelineInfos.size() == mode.shaderStages.size());
         assert(pipelineInfos.size() == 0 || !derivePipelines || (pipelineInfos[0].flags & VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT));
     }
 
     std::vector<VkPipeline> pipelinesList;
-    pipelinesList.resize(Config::shaderStages.size());
+    pipelinesList.resize(mode.shaderStages.size());
     if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, static_cast<uint32_t>(pipelineInfos.size()), pipelineInfos.data(), nullptr, pipelinesList.data()) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create graphics pipelines!");
     }
 
     for (size_t i = 0; i < pipelinesList.size(); i++) {
-        pipelines.insert(std::make_pair(Config::shaderStages[i].type, pipelinesList[i]));
+        pipelines.insert(std::make_pair(mode.shaderStages[i].type, pipelinesList[i]));
     }
 
     for (auto& module : shaderModules) {
@@ -1101,16 +1121,30 @@ void App::createCommandBuffers() {
 
 }
 
-void App::createUniformBuffers() {
-    VkDeviceSize uniformBufferSize = Config::uniformBufferObjectSize();
-
-    uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
-    uniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
-    uniformBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT);
-
+//TODO add more mempry types
+void App::createUniformBuffers(Mode& mode) {
+    //uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+    //uniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
+    //uniformBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT);
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        createBuffer(uniformBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffers[i], uniformBuffersMemory[i]);
-        mapMemory(device, uniformBuffersMemory[i], 0, uniformBufferSize, 0, &uniformBuffersMapped[i]);
+        for (auto &descriptorSet : mode.descriptorBindings) {
+            int j = 0;
+            for (auto& binding : descriptorSet) {
+                if (binding.type != UNIFORM_BUFFER) continue;
+
+                VkDeviceSize uniformBufferSize = static_cast<VkDeviceSize>(binding.size);
+
+                uniformBuffersMemory[i].emplace_back(VkDeviceMemory{});
+                uniformBuffers[i].emplace_back(VkBuffer{});
+                uniformBuffersMapped[i].emplace_back();
+
+                createBuffer(uniformBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffers[i][j], uniformBuffersMemory[i][j]);
+                mapMemory(device, uniformBuffersMemory[i][j], 0, uniformBufferSize, 0, &uniformBuffersMapped[i][j]);
+
+                binding.index = j; //set where idx is location of buffer as App::uniformBuffers[frame][idx] and uniformBuffers[frame][idx]
+                j++;
+            }
+        }
     }
 }
 
@@ -1118,97 +1152,153 @@ void App::createTextureImageView() {
     textureImageView = createImageView(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
 }
 
-void App::createTextureSampler() {
+//TODO allow for different types of textures samplers
+void App::createTextureSamplers(Mode& mode) {
     VkSamplerCreateInfo samplerInfo{};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    samplerInfo.magFilter = VK_FILTER_LINEAR;
-    samplerInfo.minFilter = VK_FILTER_LINEAR;
-    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.anisotropyEnable = deviceFeatures.samplerAnisotropy;
+    int i = 0;
+    for (auto& set : mode.descriptorBindings) {
+        for (auto& binding : set) {
+            if (binding.type != COMBINED_IMAGE_SAMPLER && binding.type != SAMPLER) continue;
+            samplerInfo.magFilter = VK_FILTER_LINEAR;
+            samplerInfo.minFilter = VK_FILTER_LINEAR;
+            samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+            samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+            samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+            samplerInfo.anisotropyEnable = deviceFeatures.samplerAnisotropy;
 
 
-    samplerInfo.maxAnisotropy = deviceFeatures.samplerAnisotropy ? deviceProperties.limits.maxSamplerAnisotropy : 1.0f;
-    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-    samplerInfo.unnormalizedCoordinates = VK_FALSE;
-    samplerInfo.compareEnable = VK_FALSE;
-    samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-    samplerInfo.mipLodBias = 0.0f;
-    samplerInfo.minLod = 0.0f;
-    samplerInfo.maxLod = 0.0f;
+            samplerInfo.maxAnisotropy = deviceFeatures.samplerAnisotropy ? deviceProperties.limits.maxSamplerAnisotropy : 1.0f;
+            samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+            samplerInfo.unnormalizedCoordinates = VK_FALSE;
+            samplerInfo.compareEnable = VK_FALSE;
+            samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+            samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+            samplerInfo.mipLodBias = 0.0f;
+            samplerInfo.minLod = 0.0f;
+            samplerInfo.maxLod = 0.0f;
 
-    if (vkCreateSampler(device, &samplerInfo, nullptr, &textureImageSampler) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create texture sampler!");
+            textureImageSamplers.emplace_back(VkSampler{});
+            if (vkCreateSampler(device, &samplerInfo, nullptr, &(textureImageSamplers[i])) != VK_SUCCESS) {
+                throw std::runtime_error("Failed to create texture sampler!");
+            }
+            binding.index = i;
+        }
     }
 }
 
-void App::createDescriptorPool() {
-    std::array<VkDescriptorPoolSize, 2> poolSizes{};
-    poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-    poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSizes[1].descriptorCount = static_cast<uint32_t> (MAX_FRAMES_IN_FLIGHT);
+void App::createDescriptorPool(const Mode& mode) {
+    //technically unnecessary since SamplerTypeT values match VkDescriptor type, but just in case...
+    //TODO consider getting rid of it?
+    std::unordered_map<DescriptorTypeT, VkDescriptorType> descriptorNameMap = {
+        {SAMPLER, VK_DESCRIPTOR_TYPE_SAMPLER},
+        {COMBINED_IMAGE_SAMPLER, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER},
+        {SAMPLED_IMAGE, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE},
+        {STORAGE_IMAGE, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE},
+        {UNIFORM_TEXEL_BUFFER, VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER},
+        {STORAGE_TEXEL_BUFFER, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER},
+        {UNIFORM_BUFFER, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER},
+        {STORAGE_BUFFER, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER},
+        {UNIFORM_BUFFER_DYNAMIC, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC},
+        {STORAGE_BUFFER_DYNAMIC, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC}
+    };
+    
+    std::vector<VkDescriptorPoolSize> poolSizes{};
+    VkDescriptorPoolSize poolSize{};
+    for (auto set : mode.descriptorBindings) {
+        for (auto binding : set) {
+            assert(descriptorNameMap.count(binding.type));
+            poolSize.type = descriptorNameMap[binding.type];
+            //TODO def need max frames in flight number for uniform and storage buffers, do I need for samplers?
+            poolSize.descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT); 
+
+            poolSizes.emplace_back(poolSize);
+        }
+    }
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
     poolInfo.pPoolSizes = poolSizes.data();
     //TODO if we modify / free descriptor pool, need VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT
-    poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+    //TODO is this calculation of max sets correct? also cannot be going over maxBoundDescriptorSets physical device limit
+    poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT * mode.descriptorBindings.size());
 
     if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create descriptor pool!");
     }
 }
 
-void App::createDescriptorSets() {
-    std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, descriptorSetLayout);
-    VkDescriptorSetAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = descriptorPool;
-    allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-    allocInfo.pSetLayouts = layouts.data();
+//TODO def an area to check whether we really need a MAX_FRAMES_IN_FLGHT allocation for each set
+void App::createDescriptorSets(const Mode& mode) {
+    std::unordered_map<DescriptorTypeT, VkDescriptorType> descriptorNameMap = {
+        {SAMPLER, VK_DESCRIPTOR_TYPE_SAMPLER},
+        {COMBINED_IMAGE_SAMPLER, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER},
+        {SAMPLED_IMAGE, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE},
+        {STORAGE_IMAGE, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE},
+        {UNIFORM_TEXEL_BUFFER, VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER},
+        {STORAGE_TEXEL_BUFFER, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER},
+        {UNIFORM_BUFFER, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER},
+        {STORAGE_BUFFER, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER},
+        {UNIFORM_BUFFER_DYNAMIC, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC},
+        {STORAGE_BUFFER_DYNAMIC, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC}
+    };
 
-    descriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
-    if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to allocate descriptor sets!");
+    std::array<std::vector<VkDescriptorSetLayout>, MAX_FRAMES_IN_FLIGHT> layouts;
+    uint32_t totalNumSets = 0;
+    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        for (auto descriptorSetLayout : descriptorSetLayouts) {
+            totalNumSets++;
+            layouts[i].emplace_back(descriptorSetLayout);
+        }
+    }
+
+    if (DEBUG && globalParameters.DEBUG_LEVEL >= ALL) std::cout << "Number of descriptor sets written: " << totalNumSets << std::endl;
+
+    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        VkDescriptorSetAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        allocInfo.descriptorPool = descriptorPool;
+        allocInfo.descriptorSetCount = static_cast<uint32_t>(layouts[i].size());
+        allocInfo.pSetLayouts = layouts[i].data();
+
+        descriptorSets[i].resize(layouts[i].size());
+        if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets[i].data()) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to allocate descriptor sets!");
+        }
     }
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        for (size_t j = 0; j < mode.descriptorBindings.size(); j++) {
+            std::vector<VkWriteDescriptorSet> descriptorWrites(mode.descriptorBindings[j].size());
+            VkDescriptorBufferInfo bufferInfo{};
+            VkDescriptorImageInfo imageInfo{};
+            for (size_t bindingIdx = 0; bindingIdx < mode.descriptorBindings[j].size(); bindingIdx++) {
+                DescriptorBinding binding = mode.descriptorBindings[j][bindingIdx];
 
-        std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
+                descriptorWrites[bindingIdx].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                descriptorWrites[bindingIdx].dstSet = descriptorSets[i][j];
+                descriptorWrites[bindingIdx].dstBinding = bindingIdx;
+                descriptorWrites[bindingIdx].dstArrayElement = 0;
+                descriptorWrites[bindingIdx].descriptorType = descriptorNameMap[binding.type];
+                descriptorWrites[bindingIdx].descriptorCount = binding.count;
+                if (binding.type == UNIFORM_BUFFER) {
+                    bufferInfo.buffer = uniformBuffers[i][binding.index];
+                    bufferInfo.offset = 0;
+                    bufferInfo.range = binding.size;
+                    descriptorWrites[bindingIdx].pBufferInfo = &bufferInfo;
+                }
+                else if (binding.type == COMBINED_IMAGE_SAMPLER) {
+                    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                    imageInfo.imageView = textureImageView; //TODO do not hardcode to be this one texture
+                    imageInfo.sampler = textureImageSamplers[binding.index];
+                    descriptorWrites[bindingIdx].pImageInfo = &imageInfo;
+                }
+            }
+            //TODO do fill in desciptor copy count to copy MAX_FRAMES_IN_FLIGHT times so we don't need this outer loop
+            vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+        }
 
-        VkDescriptorBufferInfo bufferInfo{};
-        bufferInfo.buffer = uniformBuffers[i];
-        bufferInfo.offset = 0;
-        bufferInfo.range = Config::uniformBufferObjectSize();
-        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[0].dstSet = descriptorSets[i];
-        descriptorWrites[0].dstBinding = 0;
-        descriptorWrites[0].dstArrayElement = 0;
-        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        descriptorWrites[0].descriptorCount = 1;
-        descriptorWrites[0].pBufferInfo = &bufferInfo;
-        descriptorWrites[0].pImageInfo = nullptr;
-        descriptorWrites[0].pTexelBufferView = nullptr;
-
-
-        VkDescriptorImageInfo imageInfo{};
-        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        imageInfo.imageView = textureImageView;
-        imageInfo.sampler = textureImageSampler;
-        descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[1].dstSet = descriptorSets[i];
-        descriptorWrites[1].dstBinding = 1;
-        descriptorWrites[1].dstArrayElement = 0;
-        descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        descriptorWrites[1].descriptorCount = 1;
-        descriptorWrites[1].pImageInfo = &imageInfo;
-
-
-        vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
     }
 }
 
@@ -1244,29 +1334,29 @@ void App::createSynchObjects() {
     }
 }
 
-void App::initProgram() {
+void App::initProgram(Mode& mode) {
     if (!useDynamicRendering) {
-        createRenderPass();
+        createRenderPass(mode);
     }
-    createDescriptorSetLayout();
-    createGraphicsPipeline();
-    createCommandPools();
+    createDescriptorSetLayouts(mode);
+    createGraphicsPipeline(mode);
+    createCommandPools(); //TODO mode to into initVulkan ?
 #if defined(COMBINED_VERTEX_INDEX_BUFFER) && COMBINED_VERTEX_INDEX_BUFFER
     createVertexIndexBuffer();
 #else
     createVertexBuffer();
     createIndexBuffer();
 #endif
-    createUniformBuffers();
+    createUniformBuffers(mode);
     createDepthResources();
     if (!useDynamicRendering) {
         createFramebuffers();
     }
     createTextureImage("statue.jpg");
     createTextureImageView();
-    createTextureSampler();
-    createDescriptorPool();
-    createDescriptorSets();
+    createTextureSamplers(mode);
+    createDescriptorPool(mode);
+    createDescriptorSets(mode);
     createCommandBuffers();
     createSynchObjects();
 }
@@ -1384,18 +1474,18 @@ void App::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex
     scissor.extent = { swapChainExtent.width, swapChainExtent.height };
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-
-    if (Config::uniformBufferObjectSize() > 0) {
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[flightFrame], 0, nullptr);
+    //TODO TODO TODO desciptorSets sohuld actually be a 2D array not 3D probably
+    if (uniformBuffers[flightFrame].size() > 0) {
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[flightFrame][0], 0, nullptr);
     }
     uint32_t numIndices = 0, indexSize = 0;
-    Config::indexBufferSize(&numIndices, &indexSize);
+    indexBufferSize(&numIndices, &indexSize);
     if (numIndices > 0) {
         vkCmdDrawIndexed(commandBuffer, numIndices, 1, 0, 0, 0);
     }
     else {
         uint32_t numVertices, vertexSize = 0;
-        Config::vertexBufferSize(&numVertices, &vertexSize);
+        vertexBufferSize(&numVertices, &vertexSize);
         if (numVertices > 0) {
             vkCmdDraw(commandBuffer, numVertices, 1, 0, 0);
         }
@@ -1448,7 +1538,7 @@ void App::drawFrame() {
 
     vkResetFences(device, 1, &inFlightFences[flightFrame]);
 
-    /*static*/ VkCommandBuffer commandBuffer = commandBuffers[GRAPHICS_QUEUE][flightFrame];
+    VkCommandBuffer commandBuffer = commandBuffers[GRAPHICS_QUEUE][flightFrame];
     vkResetCommandBuffer(commandBuffer, 0);
     
     //update scene behavior
@@ -1456,8 +1546,25 @@ void App::drawFrame() {
 
     auto currentTime = std::chrono::high_resolution_clock::now();
     float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
-    Config::updateUniformBuffer(uniformBuffersMapped, flightFrame, time, swapChainExtent.width, swapChainExtent.height);
+    //TODO
+    //TODO come up with a more wholistic approcah to updating uniform buffers
+    //TODO
+    auto updateUniformBuffer = [&](uint32_t uniformIdx, uint32_t flightFrame, float time, uint32_t width, uint32_t height) {
+        glm::mat4 modelMatrix = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        glm::mat4 viewMatrix = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        glm::mat4 projMatrix = glm::perspective(glm::radians(45.0f), width / static_cast<float>(height), 0.01f, 10.0f);
+        projMatrix[1][1] *= -1;
 
+        struct UniformBufferObject {
+            glm::mat4 model;
+            glm::mat4 view;
+            glm::mat4 proj;
+        };
+
+        UniformBufferObject ubo = { modelMatrix, viewMatrix, projMatrix };
+        memcpy(uniformBuffersMapped[flightFrame][uniformIdx], &ubo, sizeof(ubo));
+    };
+    updateUniformBuffer(0, flightFrame, time, swapChainExtent.width, swapChainExtent.height);
 
     recordCommandBuffer(commandBuffer, imageIndex);
 
@@ -1499,13 +1606,6 @@ void App::drawFrame() {
     flightFrame = (flightFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-void App::mainLoop() {
-    while (!glfwWindowShouldClose(window)) {
-        FRAME++;
-        glfwPollEvents();
-        drawFrame();
-    }
-}
 
 void App::cleanupSwapChain() {
     vkDestroyImageView(device, depthImageView, nullptr);
@@ -1525,23 +1625,34 @@ void App::cleanupSwapChain() {
     vkDestroySwapchainKHR(device, swapChain, nullptr);
 }
 
-void App::cleanup() {
+void App::cleanupProgram() {
     vkDeviceWaitIdle(device);
     cleanupSwapChain();
 
-    //TODO chnage when number of used textures is not known at runtime
-    vkDestroySampler(device, textureImageSampler, nullptr);
+    for (auto sampler : textureImageSamplers) {
+        vkDestroySampler(device, sampler, nullptr);
+    }
+    textureImageSamplers.clear();
+
+    //TODO chnage to not hardcode this one texture
     vkDestroyImageView(device, textureImageView, nullptr);
     vkDestroyImage(device, textureImage, nullptr);
     vkFreeMemory(device, textureImageMemory, nullptr);
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        freeBuffer(uniformBuffers[i], uniformBuffersMemory[i]);
+        for (size_t j = 0; j < uniformBuffers[i].size(); j++) {
+            freeBuffer(uniformBuffers[i][j], uniformBuffersMemory[i][j]);
+        }
+        uniformBuffers[i].clear();
+        uniformBuffersMemory[i].clear();
     }
 
     vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 
-    vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+    for (auto descriptorSetLayout : descriptorSetLayouts) {
+        vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+    }
+    descriptorSetLayouts.clear();
 
 #if defined(COMBINED_VERTEX_INDEX_BUFFER) && COMBINED_VERTEX_INDEX_BUFFER
     freeBuffer(vertexIndexBuffer, vertexIndexBufferMemory);
@@ -1554,25 +1665,34 @@ void App::cleanup() {
     for (auto& semaphore : imageAvailableSemaphores) {
         vkDestroySemaphore(device, semaphore, nullptr);
     }
+    imageAvailableSemaphores.clear();
 
     for (auto& semaphore : renderFinishedSemaphores) {
         vkDestroySemaphore(device, semaphore, nullptr);
     }
+    renderFinishedSemaphores.clear();
 
     for (auto& fence : inFlightFences) {
         vkDestroyFence(device, fence, nullptr);
     }
+    inFlightFences.clear();
 
     for (auto& pool : commandPools) {
         vkDestroyCommandPool(device, pool.second, nullptr);
     }
-    
+    commandPools.clear();
+
     for (auto& pipeline : pipelines) {
         vkDestroyPipeline(device, pipeline.second, nullptr);
     }
-    vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+    pipelines.clear();
+    vkDestroyPipelineLayout(device, pipelineLayout, nullptr); //TODO need more than one push constant definition
 
-    if(!useDynamicRendering) vkDestroyRenderPass(device, renderPass, nullptr);
+    if (!useDynamicRendering) vkDestroyRenderPass(device, renderPass, nullptr);
+}
+
+void App::cleanupVulkan() {
+    vkDeviceWaitIdle(device);
 
     vkDestroyDevice(device, nullptr);
 
