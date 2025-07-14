@@ -1,4 +1,3 @@
-#include <vulkan/vulkan.h>
 #include "vulkanCore.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"

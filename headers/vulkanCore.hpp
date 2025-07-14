@@ -14,6 +14,7 @@
 #include <array>
 
 #include "commandArgs.hpp" //TODO make this a macro to include or not
+#include "vertexIndex.hpp"
 #include "mode.hpp"
 
 class App {
@@ -36,19 +37,6 @@ public:
         SEVERE = 1, //critical issues
         MODERATE = 2, //critical issues + validation
         ALL = 3 //critical issues + validation + sanity checks
-    };
-    struct GlobalConstantParameters { //TODO when eventually get rid of command line arguments
-        bool HEADLESS = false;
-        std::string PHYSICAL_DEVICE = "";
-        bool LIST_PHYSICAL_DEVICES = false;
-        bool SEPERATE_QUEUE_FAMILIES = true;
-        uint32_t DEBUG_LEVEL = 0;
-        bool PRINT_DEBUG = false;
-        std::string SWAPCHAIN_MODE = "fifo";
-        bool FORCE_SHOW_FPS = false;
-        bool COMBINED_INDEX_VERTEX = true;
-        bool STRIPIFY = false;
-        GlobalConstantParameters() = default;
     };
     GlobalConstantParameters globalParameters{};
     

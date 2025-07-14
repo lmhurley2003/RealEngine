@@ -15,8 +15,8 @@ include(CMakeGlobalMacros.cmake)
 
 find_package(Vulkan REQUIRED)
 
-include_directories(${PROJECT_SOURCE_DIR}/source
-                    ${PROJECT_SOURCE_DIR}/headers
+include_directories(${PROJECT_SOURCE_DIR}/headers
+                    ${PROJECT_SOURCE_DIR}/source
                     ${PROJECT_SOURCE_DIR}/shaders
                     ${PROJECT_SOURCE_DIR}/shaders/embedded
                     "C:\\Users\\lucas\\OneDrive\\Documents\\Visual Studio 2022\\Libraries\\glm"
@@ -34,6 +34,11 @@ set(real_headers
     headers/vulkanCore.hpp
     headers/vertexIndex.hpp
     headers/commandArgs.hpp
+    headers/animation.hpp
+    headers/parameters.hpp
+    headers/material.hpp
+    headers/mesh.hpp
+    headers/light.hpp
     headers/scene.hpp
     headers/jsonParsing.hpp
     headers/input.hpp
@@ -46,8 +51,10 @@ set(real_headers
 file(GLOB SOURCE_EMBEDDED_SHADERS "shaders/embedded/*.cpp")
 set(real_source
     source/commandArgs.cpp
+    source/jsonParsing.cpp
     source/entityComponent.cpp
     source/input.cpp
+    source/mesh.cpp
     source/scene.cpp
     source/mode.cpp
     source/playMode.cpp

@@ -8,7 +8,8 @@
 
 #include <string>
 #include <memory>
-#include "commandArgs.hpp"
+//#include "commandArgs.hpp"
+#include "parameters.hpp"
 
 // DEBUG_LEVEL
 enum : uint32_t {
@@ -99,29 +100,19 @@ struct Mode : std::enable_shared_from_this<Mode> {
 	// 'elapsed' is time in seconds since the last call to 'update'
 	virtual void update(float elapsed) {}
 
-	struct ModeConstantParameters {
-		std::string SCENE_NAME = "";
-		std::string START_CAMERA_NAME = "";
-		bool DERIVE_PIPELINES = false;
-		int MULTI_SAMPLES = 1;
-		bool FRUSTUM_CULLING = false;
-		bool OCCLUSION_CULLING = false;
-		bool STRIPIFY = false;
-		bool CLUSTER = false;
-		bool CLUSTER_SIZE = 64;
-		bool DEBUG = false;
-		bool PRINT_DEBUG_OUTPUT = false;
-	};
-	ModeConstantParameters modeParameters{};
+	//TODO eventually draw should probably be moved into input
+	//draw is called after update:
+	//virtual void draw(glm::uvec2 const& drawable_size) = 0;
+
+	ModeConstantParameters modeParameters;
 	
 	std::vector<std::vector<DescriptorBinding>> descriptorBindings{};
 	std::vector<const unsigned char*> shaders{};
 	std::vector<uint32_t> shaderSizes{}; //used if using embedded shaders
 	std::vector<PipelineStage> shaderStages{};
-	
-	//TODO eventually draw should probably be moved into input
-	//draw is called after update:
-	//virtual void draw(glm::uvec2 const& drawable_size) = 0;
+
+	Mode(ModeConstantParameters _params) : modeParameters(_params) {};
+	Mode() : Mode(ModeConstantParameters()) {};
 	
 	//Mode::current is the Mode to which events are dispatched.
 	// use 'set_current' to change the current Mode (e.g., to switch to a menu)

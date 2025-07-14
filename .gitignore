@@ -6,6 +6,8 @@ Debug/
 x64/
 build/
 out/
+scenes/
+textures/
 out/build/x64-Debug
 RealEngine.vcxproj
 RealEngine.vcxproj.filters

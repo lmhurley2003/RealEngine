@@ -55,6 +55,41 @@ glm::uvec2 ParamMap::getVec(std::string s) {
 	return std::get<3>(p[s]);
 }
 
+GlobalConstantParameters ParamMap::toGlobalParameters() {
+	GlobalConstantParameters globalParameters{};
+	globalParameters.HEADLESS = getBool("headless");
+	globalParameters.PHYSICAL_DEVICE = getString("physical-device");
+	globalParameters.LIST_PHYSICAL_DEVICES = getBool("list-physical-devices");
+	globalParameters.SEPERATE_QUEUE_FAMILIES = getBool("seperate-queue-families");
+	globalParameters.DEBUG_LEVEL = getInt("debug-level");
+	globalParameters.PRINT_DEBUG = getBool("print-debug-output");
+	globalParameters.SWAPCHAIN_MODE = getString("swapchain-mode");
+	globalParameters.FORCE_SHOW_FPS = getBool("force-show-fps");
+	globalParameters.COMBINED_INDEX_VERTEX = getBool("combined-vertex-index");
+	return globalParameters;
+}
+
+ModeConstantParameters ParamMap::toModeParameters() {
+	ModeConstantParameters modeParameters{};
+	modeParameters.SCENE_NAME = getString("scene");
+	modeParameters.START_CAMERA_NAME = getString("camera");;
+	modeParameters.DERIVE_PIPELINES = getBool("derive-pipelines");;
+	modeParameters.MULTI_SAMPLES = getInt("multisamples");
+	modeParameters.FRUSTUM_CULLING = getBool("frustum-culling");
+	modeParameters.OCCLUSION_CULLING = getBool("occlusion-culling");
+	modeParameters.STRIPIFY = getBool("stripify");
+	modeParameters.CLUSTER = getBool("cluster");
+	modeParameters.CLUSTER_SIZE = getInt("cluster-size");
+#if defined(NDEBUG) && NDEBUG
+	modeParameters.DEBUG = false;
+#else
+	modeParameters.DEBUG = true;
+#endif
+	modeParameters.PRINT_DEBUG_OUTPUT = getBool("print-debug-output");
+	modeParameters.DEBUG_LEVEL = getInt("debug-level");
+	return modeParameters;
+}
+
 // ================================================================================================
 //
 // ================================================================================================

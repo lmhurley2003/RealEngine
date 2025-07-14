@@ -3,39 +3,69 @@
 uint32_t Entity::totalEntities = 0;
 uint32_t Entity::currentEntities = 0;
 
-glm::mat4 Transform::localToParent() {
-	return glm::translate((glm::mat4_cast(rotation) * glm::scale(glm::mat4(1.0f), scale)), translation);
-}
-glm::mat4 Transform::parentToLocal() {
-	glm::vec3 scaleCorrect = glm::vec3(scale.x == 0.0f ? 1.0f : scale.x, scale.y == 0.0f ? 1.0f : scale.y, scale.z == 0.0f ? 1.0f : scale.z);
-	return glm::scale((glm::mat4_cast(glm::inverse(rotation)) * glm::translate(glm::mat4(1.0f), -translation)), 1.0f / scaleCorrect);
-    //return glm::scale(mat4(1.0f), 1.0f / scale) * toMat4(inverse(rotation)) * translate(mat4(1.0f), -translation);
+bool Entity::isEnabled() {
+	return (flags & ENTITY_IS_ENABLED);
 }
 
-glm::mat4 Transform::localToParent(glm::vec3 translation, glm::quat rotation, glm::vec3 scale) {
-	return glm::translate((glm::mat4_cast(rotation) * glm::scale(glm::mat4(1.0f), scale)), translation);
-}
-glm::mat4 Transform::parentToLocal(glm::vec3 translation, glm::quat rotation, glm::vec3 scale) {
-	glm::vec3 scaleCorrect = glm::vec3(scale.x == 0.0f ? 1.0f : scale.x, scale.y == 0.0f ? 1.0f : scale.y, scale.z == 0.0f ? 1.0f : scale.z);
-	return glm::scale((glm::mat4_cast(glm::inverse(rotation)) * glm::translate(glm::mat4(1.0f), -translation)), 1.0f / scaleCorrect);
+bool Entity::isStatic() {
+	return (flags & ENTITY_IS_STATIC);
 }
 
-inline bool Entity::isStatic() {
-	return (flags & ENTITY_IS_STATIC_FLAG);
-}
-
-inline bool Entity::isDriverAnimated() {
+bool Entity::isDriverAnimated() {
 	return (flags & ENTITY_IS_DRIVER_ANIMATED);
 }
 
-inline bool Entity::hasMesh() {
+bool Entity::hasMesh() {
 	return (flags & ENTITY_HAS_MESH);
 }
 
-inline bool Entity::isBoneAnimated() {
+bool Entity::isBoneAnimated() {
 	return (flags & ENTITY_IS_BONE_ANIMATED);
 }
 
-inline bool Entity::hasLight() {
+bool Entity::hasLight() {
 	return (flags & ENTITY_HAS_LIGHT);
+}
+
+bool Entity::hasCamera() {
+	return (flags & ENTITY_HAS_CAMERA);
+}
+bool Entity::hasEnvironmentNode() {
+	return (flags & ENTITY_HAS_ENVIRONMENT_NODE);
+}
+
+void Entity::setIsEnabled(bool onOff) {
+	if (onOff) (flags |= ENTITY_IS_ENABLED);
+	else (flags &= ~ENTITY_IS_ENABLED);
+}
+
+void Entity::setIsStatic(bool onOff) {
+	if (onOff) (flags |= ENTITY_IS_STATIC);
+	else (flags &= ~ENTITY_IS_STATIC);
+}
+void Entity::setIsDriverAnimated(bool onOff) {
+	if (onOff) (flags |= ENTITY_IS_DRIVER_ANIMATED);
+	else (flags &= ~ENTITY_IS_DRIVER_ANIMATED);
+}
+void Entity::setHasMesh(bool onOff) {
+	if (onOff) (flags |= ENTITY_HAS_MESH);
+	else (flags &= ~ENTITY_HAS_MESH);
+}
+void Entity::setIsBoneAnimation(bool onOff) {
+	if (onOff) (flags |= ENTITY_IS_BONE_ANIMATED);
+	else (flags &= ~ENTITY_IS_BONE_ANIMATED);
+}
+
+void Entity::setHasLight(bool onOff) {
+	if (onOff) (flags |= ENTITY_HAS_LIGHT);
+	else (flags &= ~ENTITY_HAS_LIGHT);
+}
+
+void Entity::setHasCamera(bool onOff) {
+	if (onOff) (flags |= ENTITY_HAS_CAMERA);
+	else (flags &= ~ENTITY_HAS_CAMERA);
+}
+void Entity::setHasEnvironmentNode(bool onOff) {
+	if (onOff) (flags |= ENTITY_HAS_ENVIRONMENT_NODE);
+	else (flags &= ~ENTITY_HAS_ENVIRONMENT_NODE);
 }

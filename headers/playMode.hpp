@@ -1,7 +1,7 @@
+#pragma once
 #include "mode.hpp"
 
 #include "scene.hpp"
-//#include "WalkMesh.hpp"
 #include <glm/glm.hpp>
 
 #include "commandArgs.hpp"
@@ -66,7 +66,6 @@ struct DescriptorBinding {
 */
 
 struct PlayMode : Mode {
-	PlayMode(ParamMap commandLineParameters);
 	PlayMode();
 	virtual ~PlayMode();
 
@@ -85,7 +84,7 @@ struct PlayMode : Mode {
 	//std::array<float, Input::ActionType_t::DEBUG_CONSOLE> actions;
 
 	//scene local to this program instance
-	Scene scene;
+	Scene scene{};
 
 	//functions called by main loop:
 	virtual bool handleEvent(Input::Event const&, glm::uvec2 const& window_size) override;

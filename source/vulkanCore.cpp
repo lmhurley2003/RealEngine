@@ -10,8 +10,7 @@
 #include <array>
 #include <map>
 
-//#include "vulkanCore.hpp"
-#include "vertexIndex.hpp"
+#include "vulkanCore.hpp"
 #include "utils.hpp"
 #define GLM_FORCE_RADIANS
 #include <glm/glm.hpp>
@@ -1708,7 +1707,6 @@ void App::cleanupVulkan() {
     vkDestroySurfaceKHR(instance, surface, nullptr);
     vkDestroyInstance(instance, nullptr);
     
-
     glfwDestroyWindow(window);
     glfwTerminate();
 }

@@ -9,6 +9,33 @@
 #include "triBufferTexturedMatrixVert.cpp"
 #include "triBufferTexturedFrag.cpp"
 
+bool PlayMode::handleEvent(Input::Event const& event, glm::uvec2 const& window_size) {
+	return true;
+}
+
+void PlayMode::update(float elapsed) {
+}
+
+
+PlayMode::PlayMode() : Mode(commandLineParameters.toModeParameters()) {
+	descriptorBindings = { {{ UNIFORM_BUFFER, VERTEX, 1, {sizeof(UniformBuffer)}, -1 }, 
+							{ COMBINED_IMAGE_SAMPLER, FRAGMENT, 1, {LINEAR_SAMPLER}, -1 }} };
+
+	shaders = {triBufferTexturedMatrixVert, triBufferTexturedFrag };
+	shaderSizes = { triBufferTexturedMatrixVertSize, triBufferTexturedFragSize };
+	shaderStages = { {MAIN_RENDER, {{VERTEX, 0}, {FRAGMENT, 1}}} };
+
+
+	if(sizeof(Vertex) != (sizeof(float) * 12 + sizeof(uint32_t))) {
+		std::cerr << "Vertex not packed! expected" << (sizeof(float) * 12 + sizeof(uint32_t)) << "got" << sizeof(Vertex) << std::endl;
+		throw std::runtime_error("");
+	};
+	scene = Scene(modeParameters.SCENE_NAME, modeParameters);
+	scene.printScene(modeParameters);
+
+	return;
+}
+
 [[maybe_unused]]
 void debugHandleEvent(Input::Event const& event) {
 	std::cout << "\nEvent of type : ";
@@ -39,28 +66,6 @@ void debugHandleEvent(Input::Event const& event) {
 		break;
 	}
 	std::cout << std::endl;
-}
-
-bool PlayMode::handleEvent(Input::Event const& event, glm::uvec2 const& window_size) {
-	return true;
-}
-
-void PlayMode::update(float elapsed) {
-}
-
-PlayMode::PlayMode(ParamMap commandLineParameters) {
-
-};
-
-PlayMode::PlayMode() {
-	//if(modeParameters.SCENE_NAME != "filename")
-	//scene = Scene()
-	descriptorBindings = { {{ UNIFORM_BUFFER, VERTEX, 1, {sizeof(UniformBuffer)}, -1 }, 
-							{ COMBINED_IMAGE_SAMPLER, FRAGMENT, 1, {LINEAR_SAMPLER}, -1 }} };
-
-	shaders = {triBufferTexturedMatrixVert, triBufferTexturedFrag };
-	shaderSizes = { triBufferTexturedMatrixVertSize, triBufferTexturedFragSize };
-	shaderStages = { {MAIN_RENDER, {{VERTEX, 0}, {FRAGMENT, 1}}} };
 }
 
 PlayMode::~PlayMode() {

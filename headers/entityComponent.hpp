@@ -1,58 +1,46 @@
 #pragma once
-#define NOMINMAX
-#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
-#include <glm/mat4x4.hpp>
-#include <glm/vec3.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/quaternion.hpp>
-
 #include <unordered_map>
 #include <cassert>
 
 //TODO make macro to choose uint64_t for entity size instead ?
-typedef uint32_t enititySize_t;
-
-//TODO consider saving as simple mat4 ?
-struct Transform {
-	glm::quat rotation = glm::quat(0.0f, 0.0f, 0.0f, 1.0f);
-	glm::vec3 translation = glm::vec3(0.0f, 0.0f, 0.0f);
-	glm::vec3 scale = glm::vec3(1.0f, 1.0f, 1.0f);
-
-	Transform(glm::quat _rotation, glm::vec3 _translation, glm::vec3 _scale) : rotation(_rotation), translation(_translation), scale(_scale) {};
-	Transform() = default;
-
-	glm::mat4 localToParent();
-	glm::mat4 parentToLocal();
-
-	static glm::mat4 localToParent(glm::vec3 translation, glm::quat rotation, glm::vec3 scale);
-	static glm::mat4 parentToLocal(glm::vec3 translation, glm::quat rotation, glm::vec3 scale);
-};
-
+typedef uint32_t entitySize_t;
 
 struct Entity {
-	Transform transform{}; //TODO,should transform be a component, or maybe just (2D? 3D?) position is inherent
-
 private:
-	enititySize_t id;
+	entitySize_t id;
 	static uint32_t currentEntities; //current number of entities in scene, incremented on entity addition, decremented on entity deletetion
 	static uint32_t totalEntities; //total number of entities instantiated in runtime of scene, incremented on entity addition, NOT decremented on entity deletion
 	static const uint32_t ENTITY_IS_ENABLED = (0x1U << 0);
-	static const uint32_t ENTITY_IS_STATIC_FLAG = (0x1U << 1); //if not static, is dynamc
+	static const uint32_t ENTITY_IS_STATIC = (0x1U << 1); //if not static, is dynamc
 	static const uint32_t ENTITY_IS_DRIVER_ANIMATED = (0x1U << 2); //TODO implement driver animations, also maybe don't need static flag, just determine from whether it has animation components
 	static const uint32_t ENTITY_HAS_MESH = (0x1U << 3);
 	static const uint32_t ENTITY_IS_BONE_ANIMATED = (0x1U << 4);
 	static const uint32_t ENTITY_HAS_LIGHT = (0x1U << 5);
+	static const uint32_t ENTITY_HAS_CAMERA = (0x1U << 6);
+	static const uint32_t ENTITY_HAS_ENVIRONMENT_NODE = (0x1U << 7);
 
-	enititySize_t flags = (0x0U | ENTITY_IS_ENABLED | ENTITY_IS_STATIC_FLAG); //TODO is flag paramter necessary ?
+	entitySize_t flags = (0x0U | ENTITY_IS_ENABLED | ENTITY_IS_STATIC); //TODO is flag paramter necessary ?
 
 public:
-	inline bool isStatic();
-	inline bool isDriverAnimated();
-	inline bool hasMesh();
-	inline bool hasLight();
-	inline bool isBoneAnimated();
+	bool isEnabled();
+	bool isStatic();
+	bool isDriverAnimated();
+	bool hasMesh();
+	bool isBoneAnimated();
+	bool hasLight();
+	bool hasCamera();
+	bool hasEnvironmentNode();
 
-	enititySize_t getID() { return id; };
+	void setIsEnabled(bool onOff);
+	void setIsStatic(bool onOff);
+	void setIsDriverAnimated(bool onOff);
+	void setHasMesh(bool onOff);
+	void setIsBoneAnimation(bool onOff);
+	void setHasLight(bool onOff);
+	void setHasCamera(bool onOff);
+	void setHasEnvironmentNode(bool onOff);
+
+	entitySize_t getID() const { return id; };
 
 	Entity() {
 		if (!totalEntities) totalEntities = 0;
@@ -63,23 +51,139 @@ public:
 	};
 };
 
-//make actual data a vector, but have unordered_map of type {entity id, internal component vector idx}
+//TODO make _data switchback vector so idxs are consitent when removing entity
 template<typename T>
 class EnitityComponents {
-	std::unordered_map<enititySize_t, T> _data{};
+	// key : entity id, value : idxs into _data array
+	std::unordered_map<entitySize_t, uint32_t> _idxs{};
+	std::vector<T> _data{};
 public:
 	
-	T& get(enititySize_t id) {
-		assert(_data.count(id));
-		return _data[id];
+	T& get(entitySize_t id) {
+		assert(_idxs.count(id) && (_idxs[id] < _data.size()));
+		return _data.at(_idxs[id]);
 	}
 
-	T& get(Entity& entity) {
-		assert(_data.count(entity.getID()));
-		return _data[entity.getID()];
+	T& get(const Entity& entity) {
+		entitySize_t id = entity.getID();
+		assert(_idxs.count(id) && _idxs[id] < _data.size());
+		return _data.at(_idxs[id]);
+	}
+
+	//TODO use std::move to be more efficient, should be fine since idk where else we would be storing these components
+	//except for within the _data vectors
+	//returns idx into internal _data array, allows for intentional aliasing of components between entities
+	//uint32_t insert(const Entity& key, const T& val) {
+	//	uint32_t idx = static_cast<uint32_t>(_data.size());
+	//	_idxs.insert({ key.getID(), idx });
+	//	_data.emplace_back(val);
+	//	return idx;
+	//}
+
+	template<typename U>
+	uint32_t insert(entitySize_t key, U&& val) {
+		static_assert(std::is_same<std::decay_t<U>, T>::value, "Inserted type must be exactly T");
+		uint32_t idx = static_cast<uint32_t>(_data.size());
+		_idxs.insert({ key, idx });
+		_data.emplace_back(std::forward<U>(val));
+		return idx;
+	}
+
+	template<typename U>
+	uint32_t insert(const Entity& key, U&& val) {
+		static_assert(std::is_same<std::decay_t<U>, T>::value, "Inserted type must be exactly T");
+		uint32_t idx = static_cast<uint32_t>(_data.size());
+		_idxs.insert({key.getID(), idx });
+		_data.emplace_back(std::forward<U>(val));
+		return idx;
+	}
+
+	//uint32_t insert(entitySize_t key, const T& val) {
+	//	uint32_t idx = static_cast<uint32_t>(_data.size());
+	//	_idxs.insert({ key, idx});
+	//	_data.emplace_back(val);
+	//	return idx;
+	//}
+
+	//set entity has component from component that already exists in EntiyComponent
+	void insertExisting(const Entity& key, uint32_t idx) {
+		_idxs.insert({ key.getID(), idx });
+	}
+
+	void insertExisting(entitySize_t id, uint32_t idx) {
+		_idxs.insert({ id, idx });
+	}
+
+	bool contains(const Entity& key) {
+		return _idxs.count(key.getID());
+	}
+
+	bool contains(entitySize_t ID) {
+		return _idxs.count(ID);
 	}
 };
 
+/*
+#include "mesh.hpp"
+//TODO make _data switchback vector so idxs are consitent when removing entity
 
+template<>
+class EnitityComponents<Mesh> {
+	// key : entity id, value : idxs into _data array
+	std::unordered_map<entitySize_t, uint32_t> _idxs{};
+	std::vector<Mesh> _data{};
+public:
+
+	Mesh& get(entitySize_t id) {
+		assert(_idxs.count(id) && (_idxs[id] < _data.size()));
+		Mesh& ret = _data.at(_idxs.at(id));
+		std::cout << "GET : size of  val : " << sizeof(ret) << ", size of Mesh : " << sizeof(Mesh) << std::endl;
+		return ret;
+	}
+
+	Mesh& get(const Entity& entity) {
+		entitySize_t id = entity.getID();
+		assert(_idxs.count(id) && _idxs[id] < _data.size());
+		Mesh& ret = _data.at(_idxs.at(id));
+		std::cout << "GET : size of  val : " << sizeof(ret) << ", size of Mesh : " << sizeof(Mesh) << std::endl;
+		return ret;
+	}
+
+	//TODO use std::move to be more efficient, should be fine since idk where else we would be storing these components
+	//except for within the _data vectors
+	//returns idx into internal _data array, allows for intentional aliasing of components between entities
+	uint32_t insert(const Entity& key, const Mesh& val) {
+		std::cout << "INSERT : size of val : " << sizeof(val) << ", size of Mesh : " << sizeof(Mesh) << std::endl;
+		uint32_t idx = static_cast<uint32_t>(_data.size());
+		_idxs.insert({ key.getID(), idx });
+		_data.emplace_back(val);
+		return idx;
+	}
+
+	uint32_t insert(entitySize_t key, const Mesh& val) {
+		std::cout << "INSERT : size of val : " << sizeof(val) << ", size of Mesh : " << sizeof(Mesh) << std::endl;
+		uint32_t idx = static_cast<uint32_t>(_data.size());
+		_idxs.insert({ key, idx });
+		_data.emplace_back(val);
+		return idx;
+	}
+
+	//set entity has component from component that already exists in EntiyComponent
+	void insertExisting(const Entity& key, uint32_t idx) {
+		_idxs.insert({ key.getID(), idx });
+	}
+
+	void insertExisting(entitySize_t id, uint32_t idx) {
+		_idxs.insert({ id, idx });
+	}
+
+	bool contains(const Entity& key) {
+		return _idxs.count(key.getID());
+	}
+
+	bool contains(entitySize_t ID) {
+		return _idxs.count(ID);
+	}
+};*/
 
 
