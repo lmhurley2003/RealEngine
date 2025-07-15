@@ -3,34 +3,34 @@
 uint32_t Entity::totalEntities = 0;
 uint32_t Entity::currentEntities = 0;
 
-bool Entity::isEnabled() {
+bool Entity::isEnabled() const {
 	return (flags & ENTITY_IS_ENABLED);
 }
 
-bool Entity::isStatic() {
+bool Entity::isStatic() const {
 	return (flags & ENTITY_IS_STATIC);
 }
 
-bool Entity::isDriverAnimated() {
+bool Entity::isDriverAnimated() const {
 	return (flags & ENTITY_IS_DRIVER_ANIMATED);
 }
 
-bool Entity::hasMesh() {
+bool Entity::hasMesh() const {
 	return (flags & ENTITY_HAS_MESH);
 }
 
-bool Entity::isBoneAnimated() {
+bool Entity::isBoneAnimated() const {
 	return (flags & ENTITY_IS_BONE_ANIMATED);
 }
 
-bool Entity::hasLight() {
+bool Entity::hasLight() const {
 	return (flags & ENTITY_HAS_LIGHT);
 }
 
-bool Entity::hasCamera() {
+bool Entity::hasCamera() const {
 	return (flags & ENTITY_HAS_CAMERA);
 }
-bool Entity::hasEnvironmentNode() {
+bool Entity::hasEnvironmentNode() const {
 	return (flags & ENTITY_HAS_ENVIRONMENT_NODE);
 }
 

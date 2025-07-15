@@ -22,14 +22,14 @@ private:
 	entitySize_t flags = (0x0U | ENTITY_IS_ENABLED | ENTITY_IS_STATIC); //TODO is flag paramter necessary ?
 
 public:
-	bool isEnabled();
-	bool isStatic();
-	bool isDriverAnimated();
-	bool hasMesh();
-	bool isBoneAnimated();
-	bool hasLight();
-	bool hasCamera();
-	bool hasEnvironmentNode();
+	bool isEnabled() const;
+	bool isStatic() const;
+	bool isDriverAnimated() const;
+	bool hasMesh() const;
+	bool isBoneAnimated() const;
+	bool hasLight() const;
+	bool hasCamera() const;
+	bool hasEnvironmentNode() const;
 
 	void setIsEnabled(bool onOff);
 	void setIsStatic(bool onOff);

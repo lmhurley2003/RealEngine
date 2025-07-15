@@ -4,10 +4,10 @@
 #include "utils.cpp"
 #include "jsonParsing.cpp" //TODO why does linking fail if I don't include this
 
-glm::mat4 Transform::localToParent() {
+glm::mat4 Transform::localToParent() const {
 	return glm::translate((glm::mat4_cast(rotation) * glm::scale(glm::mat4(1.0f), scale)), translation);
 }
-glm::mat4 Transform::parentToLocal() {
+glm::mat4 Transform::parentToLocal() const {
 	glm::vec3 scaleCorrect = glm::vec3(scale.x == 0.0f ? 1.0f : scale.x, scale.y == 0.0f ? 1.0f : scale.y, scale.z == 0.0f ? 1.0f : scale.z);
 	return glm::scale((glm::mat4_cast(glm::inverse(rotation)) * glm::translate(glm::mat4(1.0f), -translation)), 1.0f / scaleCorrect);
 	//return glm::scale(mat4(1.0f), 1.0f / scale) * toMat4(inverse(rotation)) * translate(mat4(1.0f), -translation);
@@ -28,9 +28,6 @@ bool isSimpleMaterial(Object obj) {
 
 Mesh Scene::initMesh(const Object& JSONObj, const ModeConstantParameters& parameters) {
 	Mesh retMesh = Mesh();
-	//if (JSONObj.count("name")) {
-	//	retMesh.name = JSONUtils::getVal(JSONObj, "name", STRING).toString();
-	//}
 
 	Object attributes = JSONUtils::getVal(JSONObj, "attributes", OBJECT).toObject();
 	Object position = JSONUtils::getVal(attributes, "POSITION", OBJECT).toObject();
@@ -47,7 +44,17 @@ Material Scene::initMaterial(const Object& JSONobj, const ModeConstantParameters
 }
 
 Camera Scene::initCamera(const Object& JSONObj, const ModeConstantParameters& parameters) {
+	const bool CHECK_VALIDITY = parameters.DEBUG && parameters.DEBUG_LEVEL >= 3;
+	if (CHECK_VALIDITY) assert(JSONUtils::getVal(JSONObj, "type", STRING).toString() == "CAMERA");
 	Camera retCamera = Camera();
+
+	if (JSONObj.count("perspective")) {
+		const Object& perspectiveObj = JSONUtils::getVal(JSONObj, "perspective", OBJECT).toObject();
+		if (perspectiveObj.count("aspect")) retCamera.aspect =  JSONUtils::getVal(perspectiveObj, "aspect", NUMBER).toNumber().toFloatDestructive();
+		if (perspectiveObj.count("vfov")) retCamera.vfov = JSONUtils::getVal(perspectiveObj, "vfov", NUMBER).toNumber().toFloatDestructive();
+		if (perspectiveObj.count("near")) retCamera.nearPlane = JSONUtils::getVal(perspectiveObj, "near", NUMBER).toNumber().toFloatDestructive();
+		if (perspectiveObj.count("far")) retCamera.farPlane = JSONUtils::getVal(perspectiveObj, "far", NUMBER).toNumber().toFloatDestructive();
+	}
 
 	return retCamera;
 }
@@ -186,6 +193,7 @@ Scene::SceneNode Scene::initNode(const Object& JSONObj, const ModeConstantParame
 
 
 	//NOW INIT CHILDREN
+	//TODO change retNode to refernce to stop repeated calls to graph.get()
 	if (JSONObj.count("children")) {
 		std::vector<std::string> childNames = JSONUtils::getIndicesNames(JSONObj, "children", CHECK_VALIDITY);
 		
@@ -195,27 +203,29 @@ Scene::SceneNode Scene::initNode(const Object& JSONObj, const ModeConstantParame
 			if (CHECK_VALIDITY) assert(graph.contains(id));
 		}
 		else if (childNames.size() > 0) {
-			assert(tempGraph.count({NODE, childNames[0]}));
+			if(CHECK_VALIDITY) assert(tempGraph.count({NODE, childNames[0]}));
 			graph.get(retNode.entity).child = initNode(tempGraph[{NODE, childNames[0]}].object, parameters).entity.getID();
 		}
 		else {
 			return graph.get(retNode.entity);
 		}
 
-		if(CHECK_VALIDITY) assert(graph.contains(retNode.child));
-		SceneNode& curSceneNode = graph.get(retNode.child);
+		if(CHECK_VALIDITY) assert(graph.contains(graph.get(retNode.entity).child));
+		entitySize_t curSceneNodeID = graph.get(retNode.entity).child;
+		entitySize_t siblingID;
 		for (uint32_t i = 1; i < childNames.size(); i++) {
 			const std::string& childName = childNames[i];
 			if (tempComponents.count({ NODE, childName })) {
-				entitySize_t id = static_cast<entitySize_t>(tempComponents[{NODE, childName}]);
-				curSceneNode.sibling = id;
-				if (CHECK_VALIDITY) assert(graph.contains(id));
+				siblingID = static_cast<entitySize_t>(tempComponents[{NODE, childName}]);
+				graph.get(curSceneNodeID).sibling = siblingID;
+				if (CHECK_VALIDITY) assert(graph.contains(siblingID));
 			}
 			else {
 				if(CHECK_VALIDITY) assert(tempGraph.count({NODE, childName}));
-				curSceneNode.sibling = initNode(tempGraph[{NODE, childName}].object, parameters).entity.getID();
+				siblingID = initNode(tempGraph[{NODE, childName}].object, parameters).entity.getID();
+				graph.get(curSceneNodeID).sibling = siblingID;
 			}
-			curSceneNode = graph.get(curSceneNode.sibling);
+			curSceneNodeID = siblingID;
 		}
 	}
 
@@ -332,6 +342,49 @@ Scene::Scene(std::string filename, const ModeConstantParameters& parameters) {
 	return;
 }
 
+void Scene::drawScene(std::vector<DrawParameters> drawParams, glm::mat4& cameraTransform) {
+	//scene transform
+	std::stack < std::pair<glm::mat4, entitySize_t>> drawStack{};
+	drawStack.push({glm::mat4(1.0f), rootID}); //populates mat4's diagonal with 1.0f (ie identity matrix)
+	//assumes no loops in scene tree
+	bool cameraSet = false;
+	while (!drawStack.empty()) {
+		std::pair<glm::mat4, entitySize_t> nodeEntry = drawStack.top();
+		drawStack.pop();
+		glm::mat4& curTransform = nodeEntry.first;
+		entitySize_t curEntityID = nodeEntry.second;
+		const SceneNode& curSceneNode = graph.get(curEntityID);
+		const Entity& curEntity = curSceneNode.entity;
+		
+		curTransform = curTransform * curSceneNode.transform.localToParent();
+		if (!curEntity.isEnabled()) continue;
+
+		if (curEntity.hasCamera() && (sceneHasCamera() || curEntityID == cameraID)) {
+			cameraSet = true;
+			cameraTransform = glm::mat4(curTransform); //since we're using reference, need to use co[y constructor ?
+		}
+		//TODO check if all these explicity copy constructors + 1 one std::move saves time than just all copy constructors
+		if (curSceneNode.hasSibling()) {
+			drawStack.push({ glm::mat4(curTransform), curSceneNode.sibling });
+		}
+		//since we insert child before sibling in EntityComponents, more spatial localtiy if we add child to stack last
+		if (curSceneNode.hasChild()) {
+			drawStack.push({ glm::mat4(curTransform), curSceneNode.child});
+		}
+		
+		if (curEntity.hasMesh()) {
+			const Mesh& curMesh = meshes.get(curEntityID);
+			struct DrawParameters drawParam {};
+			drawParam.modeMat = std::move(curTransform);
+			drawParam.indicesStart = curMesh.indexOffset;
+			drawParam.numIndices = curMesh.numIndices;
+			drawParams.emplace_back(std::move(drawParam));
+		}
+	}
+
+	return;
+}
+
 void Scene::printScene(const ModeConstantParameters& parameters) {
 	const bool CHECK_VALIDITY = parameters.DEBUG && parameters.DEBUG_LEVEL >= 3;
 	if (!sceneHasRoot()) return;
@@ -345,15 +398,15 @@ void Scene::printScene(const ModeConstantParameters& parameters) {
 		std::string prefixString = entry.second;
 
 		const SceneNode& curNode = graph.get(curID);
-		if (CHECK_VALIDITY) assert(curID == curNode.entity.getID());
-		//std::cout << prefixString << ">NODE with ID " << curID << ", HAS ";
+		//This might not actually be true because entities can aliased together?
+		//if (CHECK_VALIDITY) assert(curID == curNode.entity.getID());
+		std::cout << prefixString << ">NODE with ID " << curID << ", HAS ";
 		if (meshes.contains(curID)) {
 			const Mesh& curMesh = meshes.get(curID);
-			std::cout << "size of Mesh : " << sizeof(Mesh) << std::endl;
 			std::cout << " Mesh(numIndices:" << curMesh.numIndices << ", indexOffset:" << curMesh.indexOffset;
 			////TODO insert dummy material for mesh if it does not exist for mesh ?
 			////if (CHECK_VALIDITY) assert(materials.contains(curID));
-			std::cout << ", material:0), " << std::endl;
+			std::cout << ", material:0), ";
 		}
 		if (cameras.contains(curID)) {
 			Camera curCamera = cameras.get(curID);
@@ -378,11 +431,12 @@ void Scene::printScene(const ModeConstantParameters& parameters) {
 		}
 		std::cout << std::endl;
 
-		if (curNode.hasChild()) {
-			printStack.push(std::make_pair(curNode.child, prefixString + "--"));
-		}
 		if (curNode.hasSibling()) {
 			printStack.push(std::make_pair(curNode.sibling, prefixString));
+		}
+		//want to print children first
+		if (curNode.hasChild()) {
+			printStack.push(std::make_pair(curNode.child, prefixString + "--"));
 		}
 
 	}

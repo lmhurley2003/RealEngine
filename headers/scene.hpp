@@ -36,11 +36,15 @@ struct Transform {
 	Transform(glm::quat _rotation, glm::vec3 _translation, glm::vec3 _scale) : rotation(_rotation), translation(_translation), scale(_scale) {};
 	Transform() = default;
 
-	glm::mat4 localToParent();
-	glm::mat4 parentToLocal();
+	//TODO make a 4x3 matric since these transformations are affine anf thus don't need bottom row?s
+	glm::mat4 localToParent() const;
+	glm::mat4 parentToLocal() const;
 
 	static glm::mat4 localToParent(glm::vec3 translation, glm::quat rotation, glm::vec3 scale);
 	static glm::mat4 parentToLocal(glm::vec3 translation, glm::quat rotation, glm::vec3 scale);
+	struct drawObjectInfo {
+
+	};
 };
 
 
@@ -78,6 +82,9 @@ struct Scene {
 	EnitityComponents<Mesh> meshes{};
 	EnitityComponents<Material> materials{};
 	entitySize_t cameraID = std::numeric_limits<entitySize_t>().max();
+	bool sceneHasCamera() {
+		return rootID != std::numeric_limits<entitySize_t>().max();
+	}
 	EnitityComponents<Camera> cameras{};
 	EnitityComponents<Light> lights{};
 	EnitityComponents<Environment> environments{};
@@ -85,6 +92,12 @@ struct Scene {
 	Scene() = default;
 	Scene(std::string filename, const ModeConstantParameters& parameters = ModeConstantParameters());
 	void printScene(const ModeConstantParameters& parameters);
+	struct DrawParameters {
+		glm::mat4 modeMat = glm::mat4();
+		uint32_t indicesStart = 0;
+		uint32_t numIndices = 0;
+	};
+	void drawScene(std::vector<DrawParameters> drawParams, glm::mat4& cameraTransform);
 
 private:
 	enum objType : uint8_t {
@@ -114,19 +127,11 @@ private:
 	};
 	struct tmpNodeIdxHasher {
 		std::size_t operator()(const tmpNodeIdx& key) const {
-			// Combine hashes of individual members
 			std::size_t h2 = std::hash<uint8_t>{}(static_cast<uint8_t>(key.type));
 			std::size_t h1 = std::hash<std::string>{}(key.name);
-			// A simple way to combine hashes (can be more sophisticated)
 			return h1 ^ (h2 << 1);
 		}
 	};
-	//template<> struct idxHash<tmpNodeIdx> {
-	//	size_t operator()(tmpNodeIdx const& idx) const {
-	//		return (std::hash<uint8_t>()(static_cast<uint8_t>(idx.type))) ^ (std::hash<std::string>()(idx.name));
-	//	}
-	//};
-
 
 	std::unordered_map<tmpNodeIdx, tmpNodeData, tmpNodeIdxHasher> tempGraph{};
 	//names may be aliased so we need a map per type of component

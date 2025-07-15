@@ -14,6 +14,7 @@ bool PlayMode::handleEvent(Input::Event const& event, glm::uvec2 const& window_s
 }
 
 void PlayMode::update(float elapsed) {
+	std::vector<Scene::DrawParameters> drawParam{};
 }
 
 

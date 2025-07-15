@@ -71,9 +71,12 @@ struct PlayMode : Mode {
 
 	//descriptor / stage dependencies / shaders
 	struct UniformBuffer {
-		glm::mat4 model;
 		glm::mat4 view;
 		glm::mat4 proj;
+	};
+
+	struct PushConsants {
+		glm::mat4 model;
 	};
 
 	//----- game state -----
