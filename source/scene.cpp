@@ -382,6 +382,7 @@ void Scene::drawScene(std::vector<DrawParameters> drawParams, glm::mat4& cameraT
 		}
 	}
 
+	if (!cameraSet) cameraTransform = glm::mat4(1.0f);
 	return;
 }
 

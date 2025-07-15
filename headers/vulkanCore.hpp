@@ -290,7 +290,8 @@ public:
 private:
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
 public:
-    void drawFrame();
+    VkCommandBuffer beginFrame();
+    void endFrame();
 private:
     void cleanupSwapChain();
 public:

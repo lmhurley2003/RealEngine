@@ -158,8 +158,7 @@ void Mesh::loadMeshData(const std::string filename, const Object& JSONObj, const
 
 			if (colorOffset != -1) {
 				buffer[i].color = *(reinterpret_cast<uint32_t*>(charBuffer.data() + i * stride + colorOffset));
-			}
-			else {
+			
 				buffer[i].position = glm::vec3(0.0f);
 			}
 #if defined(SIMPLE_VERTEX) && SIMPLE_VERTEX
