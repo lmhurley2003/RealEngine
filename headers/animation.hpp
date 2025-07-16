@@ -3,30 +3,36 @@
 #include <vector>
 
 struct Driver {
-	std::vector<uint32_t> times;
-	entitySize_t entityIdx;
-	union {
-		std::vector<glm::vec3> vec3Values;
-		std::vector<glm::quat> quatValues;
-	};
+	std::vector<float> times{};
+	std::vector<float> values{};
+	entitySize_t entityID = std::numeric_limits<entitySize_t>().max();
+	//union {
+	//	std::vector<glm::vec3> vec3Values;
+	//	std::vector<glm::quat> quatValues;
+	//};
+	//entitySize_t entityIdx = std::numeric_limits<entitySize_t>().max();
 
-	inline bool isChannelTranslation() {
+	Driver() = default;
+	//Driver(std::vector<uint32_t> _t, std::vector<glm::vec3> _v) : times(std::move(_t)), vec3Values(std::move(_v)) {};
+	//Driver(std::vector<uint32_t> _t, std::vector<glm::quat> _v) : times(std::move(_t)), quatValues(std::move(_v)) {};
+
+	inline bool isChannelTranslation() const {
 		return (flags & CHANNEL_TRANSLATION_FLAG);
 	};
-	inline bool isChannelScale() {
+	inline bool isChannelScale() const {
 		return (flags & CHANNEL_SCALE_FLAG);
 	};
-	inline bool isChannelRotation() {
+	inline bool isChannelRotation() const {
 		return (flags & CHANNEL_ROTATION_FLAG);
 	};
 
-	inline bool isInterpolationStep() {
+	inline bool isInterpolationStep() const {
 		return (flags & INTERPOLATION_STEP_FLAG);
 	};
-	inline bool isInterpolationLinear() {
+	inline bool isInterpolationLinear() const {
 		return (flags & INTERPOLATION_LINEAR_FLAG);
 	};
-	inline bool isInterpolationSlerp() {
+	inline bool isInterpolationSlerp() const {
 		return (flags & INTERPOLATION_SLERP_FLAG);
 	};
 
@@ -55,8 +61,6 @@ struct Driver {
 		if (onOff) (flags |= INTERPOLATION_SLERP_FLAG);
 		else (flags &= ~INTERPOLATION_SLERP_FLAG);
 	};
-
-
 
 private:
 	uint8_t flags = 0x0;

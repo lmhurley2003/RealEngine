@@ -26,11 +26,11 @@ namespace std {
 }
 #else
 struct Vertex {
-    glm::vec3 position;
-    glm::vec3 normal;
-    glm::vec4 tangent;
-    glm::vec2 texCoord;
-    uint32_t color;
+    glm::vec3 position = glm::vec3(0.0f);
+    glm::vec3 normal = glm::vec3(0.0f, 0.0f, 1.0f);
+    glm::vec4 tangent = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+    glm::vec2 texCoord = glm::vec2(0.0f, 0.0f);
+    uint32_t color = -1U;
 
     bool operator==(const Vertex& other) const {
         return position == other.position && normal == other.normal && tangent == other.tangent &&

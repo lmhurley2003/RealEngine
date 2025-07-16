@@ -876,12 +876,12 @@ void App::createGraphicsPipeline(const Mode& mode) {
     }
 
     std::unordered_map<ShaderStageT, VkShaderStageFlagBits> flags = 
-        { {VERTEX, VK_SHADER_STAGE_VERTEX_BIT}, {FRAGMENT, VK_SHADER_STAGE_FRAGMENT_BIT},
-          {TESSELLATION_CONTROL, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT },
-          {TESSELLATION_EVALUATION, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT },
-          {GEOMETRY, VK_SHADER_STAGE_GEOMETRY_BIT}, {MESH, VK_SHADER_STAGE_MESH_BIT_EXT},
-          {COMPUTE, VK_SHADER_STAGE_COMPUTE_BIT},
-          {CLUSTER_CULLING_HUAWEI, VK_SHADER_STAGE_CLUSTER_CULLING_BIT_HUAWEI } };
+        { {VERTEX_STAGE, VK_SHADER_STAGE_VERTEX_BIT}, {FRAGMENT_STAGE, VK_SHADER_STAGE_FRAGMENT_BIT},
+          {TESSELLATION_CONTROL_STAGE, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT },
+          {TESSELLATION_EVALUATION_STAGE, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT },
+          {GEOMETRY_STAGE, VK_SHADER_STAGE_GEOMETRY_BIT}, {MESH_STAGE, VK_SHADER_STAGE_MESH_BIT_EXT},
+          {COMPUTE_STAGE, VK_SHADER_STAGE_COMPUTE_BIT},
+          {CLUSTER_CULLING_HUAWEI_STAGE, VK_SHADER_STAGE_CLUSTER_CULLING_BIT_HUAWEI } };
 
     std::vector<VkDynamicState> dynamicStates = {
         VK_DYNAMIC_STATE_VIEWPORT,
@@ -955,8 +955,8 @@ void App::createGraphicsPipeline(const Mode& mode) {
         //TODO change shaderStages variable in mode.hpp to specifiy which descriptor set layouts instead of using all
         pipelineLayoutInfo.setLayoutCount = (stage.type == MAIN_RENDER) ? descriptorSetLayouts.size() : 0;
         pipelineLayoutInfo.pSetLayouts = (stage.type == MAIN_RENDER) ? descriptorSetLayouts.data() : nullptr;
-        pipelineLayoutInfo.pushConstantRangeCount = 0;
-        pipelineLayoutInfo.pPushConstantRanges = nullptr;
+        pipelineLayoutInfo.pushConstantRangeCount = mode.pushConstantRanges.size();
+        pipelineLayoutInfo.pPushConstantRanges = mode.pushConstantRanges.size() > 0  ? reinterpret_cast<const VkPushConstantRange*>(mode.pushConstantRanges.data()) : nullptr;
 
         if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create pipeline layout!");
@@ -990,7 +990,7 @@ void App::createGraphicsPipeline(const Mode& mode) {
         static float lineMax = deviceProperties.limits.lineWidthRange[1];
         float debugLineWidth = std::clamp(10.0f, lineMin, lineMax);
         rasterizer.lineWidth = (stage.type == DEBUG_DRAW && deviceFeatures.wideLines) ? debugLineWidth : 1.0f;
-        rasterizer.cullMode = (stage.type == SHADOWMAP || stage.type == DEBUG_DRAW) ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT;
+        rasterizer.cullMode =  (stage.type == SHADOWMAP || stage.type == DEBUG_DRAW) ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT;
         rasterizer.frontFace = (stage.type == SHADOWMAP || stage.type == DEBUG_DRAW) ? VK_FRONT_FACE_CLOCKWISE : VK_FRONT_FACE_COUNTER_CLOCKWISE;
         rasterizer.depthBiasEnable = (stage.type == SHADOWMAP) ? VK_TRUE : VK_FALSE;
         rasterizer.depthBiasConstantFactor = (stage.type == SHADOWMAP) ?  4.0f : 0.0f;
@@ -1383,10 +1383,39 @@ void App::recreateSwapChain() {
     if(!useDynamicRendering) createFramebuffers();
 }
 
-//TODO almost def need to change for secondary command buffers / subpasses / shadowmapping
-//also TODO change command buffer stucture so we dont have to wait on VKFence to being drawing ?
-// ie instantiate command buffers per swapchain image
-void App::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
+void App::updateUniformBuffer(uint32_t uniformIndex, const void* uniformData, uint32_t uniformSize) const{
+    memcpy(uniformBuffersMapped[flightFrame][uniformIndex], uniformData, static_cast<size_t>(uniformSize));
+}
+
+void App::updatePushConstants(VkCommandBuffer commandBuffer, ShaderStageT shaderStages, uint32_t size, uint32_t offset, const void* pushConstant) const {
+    vkCmdPushConstants(commandBuffer, pipelineLayout, shaderStages, offset, size, pushConstant);
+}
+
+/* At a high level
+- Wait for the previous frame to finish
+-Acquire an image from the swap chain
+-Transition attachment to correct layout
+*/
+//TODO wrap dynamic rendering image layout transition, vertexIndex buffer binding, and scissor/viewport set to use Mode::draw ? 
+std::pair<VkCommandBuffer, uint32_t> App::beginFrame() {
+    vkWaitForFences(device, 1, &inFlightFences[flightFrame], VK_TRUE, UINT64_MAX); //host waits
+
+    uint32_t imageIndex;
+    VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[flightFrame], VK_NULL_HANDLE, &imageIndex);
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        framebufferResized = false;
+        recreateSwapChain();
+        return {nullptr, -1U};
+    }
+    else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+        throw std::runtime_error("Failed to acquire swapchain image!");
+    }
+
+    vkResetFences(device, 1, &inFlightFences[flightFrame]);
+
+    VkCommandBuffer commandBuffer = commandBuffers[GRAPHICS_QUEUE][flightFrame];
+    vkResetCommandBuffer(commandBuffer, 0);
+
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = 0;
@@ -1478,26 +1507,21 @@ void App::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex
     scissor.extent = { swapChainExtent.width, swapChainExtent.height };
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-    //TODO TODO TODO desciptorSets sohuld actually be a 2D array not 3D probably
+    //TODO desciptorSets sohuld actually be a 2D array not 3D probably
     if (uniformBuffers[flightFrame].size() > 0) {
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[flightFrame][0], 0, nullptr);
     }
-    uint32_t numIndices = 0, indexSize = 0;
-    indexBufferSize(&numIndices, &indexSize);
-    if (numIndices > 0) {
-        vkCmdDrawIndexed(commandBuffer, numIndices, 1, 0, 0, 0);
-    }
-    else {
-        uint32_t numVertices, vertexSize = 0;
-        vertexBufferSize(&numVertices, &vertexSize);
-        if (numVertices > 0) {
-            vkCmdDraw(commandBuffer, numVertices, 1, 0, 0);
-        }
-        else {
-            vkCmdDraw(commandBuffer, 3, 1, 0, 0);
-        }
-    }
 
+    return { commandBuffer, imageIndex };
+}
+/* At a high level
+- end renderPass /(id using dynamic rendering) end rendering 
+- (if using dynamic rendering) transition image layout to present  
+- Submit the recorded command buffer
+- Present the swap chain image
+*/
+
+void App::endFrame(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
     if (useDynamicRendering) {
 #if defined(DYNAMIC_RENDERING) and DYNAMIC_RENDERING
         vkCmdEndRendering(commandBuffer);
@@ -1516,67 +1540,12 @@ void App::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex
     if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
         throw std::runtime_error("Failed to record command buffer!");
     }
-}
-
-
-/* At a high level (from https://vulkan-tutorial.com/en/Drawing_a_triangle/Drawing/Rendering_and_presentation)
-- Wait for the previous frame to finish
--Acquire an image from the swap chain
--Record a command buffer which draws the scene onto that image
--Submit the recorded command buffer
--Present the swap chain image
-*/ 
-void App::drawFrame() {
-    vkWaitForFences(device, 1, &inFlightFences[flightFrame], VK_TRUE, UINT64_MAX); //host waits
-
-    uint32_t imageIndex;
-    VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[flightFrame], VK_NULL_HANDLE, &imageIndex);
-    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-        framebufferResized = false;
-        recreateSwapChain();
-        return;
-    }
-    else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-        throw std::runtime_error("Failed to acquire swapchain image!");
-    }
-
-    vkResetFences(device, 1, &inFlightFences[flightFrame]);
-
-    VkCommandBuffer commandBuffer = commandBuffers[GRAPHICS_QUEUE][flightFrame];
-    vkResetCommandBuffer(commandBuffer, 0);
-    
-    //update scene behavior
-    static auto startTime = std::chrono::high_resolution_clock::now();
-
-    auto currentTime = std::chrono::high_resolution_clock::now();
-    float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
-    //TODO
-    //TODO come up with a more wholistic approcah to updating uniform buffers
-    //TODO
-    auto updateUniformBuffer = [&](uint32_t uniformIdx, uint32_t flightFrame, float time, uint32_t width, uint32_t height) {
-        glm::mat4 modelMatrix = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        glm::mat4 viewMatrix = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        glm::mat4 projMatrix = glm::perspective(glm::radians(45.0f), width / static_cast<float>(height), 0.01f, 10.0f);
-        projMatrix[1][1] *= -1;
-
-        struct UniformBufferObject {
-            glm::mat4 model;
-            glm::mat4 view;
-            glm::mat4 proj;
-        };
-
-        UniformBufferObject ubo = { modelMatrix, viewMatrix, projMatrix };
-        memcpy(uniformBuffersMapped[flightFrame][uniformIdx], &ubo, sizeof(ubo));
-    };
-    updateUniformBuffer(0, flightFrame, time, swapChainExtent.width, swapChainExtent.height);
-
-    recordCommandBuffer(commandBuffer, imageIndex);
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
     //TODO change for multiple subpasses
-    VkSemaphore waitSemaphores[] = { imageAvailableSemaphores[flightFrame]};
+    VkSemaphore waitSemaphores[] = { imageAvailableSemaphores[flightFrame] };
     VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
     submitInfo.waitSemaphoreCount = 1;
     submitInfo.pWaitSemaphores = waitSemaphores;
@@ -1584,7 +1553,7 @@ void App::drawFrame() {
     submitInfo.commandBufferCount = 1; //TODO change for using multiple command buffers
     submitInfo.pCommandBuffers = &commandBuffer;
 
-    VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[imageIndex]};
+    VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[imageIndex] };
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
@@ -1592,7 +1561,7 @@ void App::drawFrame() {
     if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[flightFrame]) != VK_SUCCESS) {
         throw std::runtime_error("Failed to submit draw command buffer!");
     }
-    
+
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.waitSemaphoreCount = 1;
@@ -1609,7 +1578,6 @@ void App::drawFrame() {
 
     flightFrame = (flightFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
-
 
 void App::cleanupSwapChain() {
     vkDestroyImageView(device, depthImageView, nullptr);

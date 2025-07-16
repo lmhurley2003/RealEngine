@@ -208,6 +208,9 @@ private:
         // app->drawFrame(); TODO reconfigure to still update frame while window is being resize, as of now program stalls.
         //previous attempt resulted in vector subscript out of range error
     }
+
+
+//FUNCTIONS USED TO INIT CORE RESOURCES (AND NOT MODE-DEPENDENT RESOURCES)
 public:
     void initWindow();
 private:
@@ -217,7 +220,6 @@ private:
     void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
     void setupDebugMessenger();
     void createSurface();
-
 
     void printQueueFamilies(VkPhysicalDevice device);
     QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
@@ -237,7 +239,7 @@ public:
     void initVulkan();
 
 private:
-    //memory functions defined in vulkanMemory.cpp
+//MEMORY FUNCTIONS DEFINED IN VULKANMEMORY.CPP
     void initializeMemorySystem();
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
     void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
@@ -255,7 +257,7 @@ private:
     void freeMemorySystem();
 
 
-    //functions dependent on Mode of program declared in Mode.hpp
+//FUNCTIONS DEPENDENT ON MODE OF PROGRAM DECLARED IN MODE.HPP
     void recreateSwapChain();
     void createRenderPass(const Mode& mode);
     VkShaderModule createShaderModule(const Mode& mode, uint32_t i);
@@ -287,11 +289,13 @@ private:
 public:
     void initProgram(Mode& mode);
 
-private:
-    void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
-public:
-    VkCommandBuffer beginFrame();
-    void endFrame();
+// FUNCTIONS USED FOR DRAWING, SOME EXPOSED TO Mode.hpp
+    void updateUniformBuffer(uint32_t uniformIndex, const void* uniformData, uint32_t uniformSize) const;
+    void updatePushConstants(VkCommandBuffer commandBuffer, ShaderStageT shaderStages, uint32_t size, uint32_t offset, const void* pushConstant) const;
+    //current frame of flight command buffer, curren swapchain image index
+    std::pair<VkCommandBuffer, uint32_t> beginFrame();
+    void endFrame(VkCommandBuffer commandBuffer, uint32_t imageIndex);
+
 private:
     void cleanupSwapChain();
 public:

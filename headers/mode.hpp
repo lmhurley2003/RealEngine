@@ -8,8 +8,8 @@
 
 #include <string>
 #include <memory>
-//#include "commandArgs.hpp"
 #include "parameters.hpp"
+#include "vulkan/vulkan.h"
 
 // DEBUG_LEVEL
 enum : uint32_t {
@@ -23,17 +23,17 @@ enum : uint32_t {
 //values same as vulkan enums
 //TODO create map from ShaderStageT to VkShaderStageFlagBits in createDescriptorSetLayouts?
 enum ShaderStageT : uint32_t {
-	VERTEX = 0x00000001,
-	TESSELLATION_CONTROL = 0x00000002,
-	TESSELLATION_EVALUATION = 0x00000004,
-	GEOMETRY = 0x00000008,
-	FRAGMENT = 0x00000010,
-	COMPUTE = 0x00000020,
-	ALL_GRAPHICS = 0x0000001F,
+	VERTEX_STAGE = 0x00000001,
+	TESSELLATION_CONTROL_STAGE = 0x00000002,
+	TESSELLATION_EVALUATION_STAGE = 0x00000004,
+	GEOMETRY_STAGE = 0x00000008,
+	FRAGMENT_STAGE = 0x00000010,
+	COMPUTE_STAGE = 0x00000020,
+	ALL_GRAPHICS_STAGES = 0x0000001F,
 	ALL_STAGES = 0x7FFFFFFF,
-	TASK = 0x00000040,
-	MESH = 0x00000080,
-	CLUSTER_CULLING_HUAWEI = 0x00080000,
+	TASK_STAGE = 0x00000040,
+	MESH_STAGE = 0x00000080,
+	CLUSTER_CULLING_HUAWEI_STAGE = 0x00080000,
 };
 
 enum PipelineStageT : uint32_t {
@@ -87,7 +87,8 @@ struct PipelineStage {
 	};
 };
 
-
+//adding "#include vulkanCore.hpp" causes linking errors
+class App;
 struct Mode : std::enable_shared_from_this<Mode> {
 	virtual ~Mode() {}
 
@@ -98,11 +99,12 @@ struct Mode : std::enable_shared_from_this<Mode> {
 
 	//update is called at the start of a new frame, after events are handled:
 	// 'elapsed' is time in seconds since the last call to 'update'
-	virtual void update(float elapsed) {}
+	virtual void update(float deltaTime, float totalTime) {}
 
-	//TODO eventually draw should probably be moved into input
 	//draw is called after update:
-	//virtual void draw(glm::uvec2 const& drawable_size) = 0;
+	// inputs : current frame in flight commmand buffer and swapchain image index
+	// TODO make cur command buffer and image index a App member so we don't need to pass it in?
+	virtual void draw(const App& core, VkCommandBuffer commandBuffer, uint32_t imageIndex) = 0;
 
 	ModeConstantParameters modeParameters;
 	
@@ -110,6 +112,13 @@ struct Mode : std::enable_shared_from_this<Mode> {
 	std::vector<const unsigned char*> shaders{};
 	std::vector<uint32_t> shaderSizes{}; //used if using embedded shaders
 	std::vector<PipelineStage> shaderStages{};
+	//shader stages, size, offset
+	struct PushConstantRange {
+		ShaderStageT stages;
+		uint32_t offset;
+		uint32_t size;
+	};
+	std::vector<PushConstantRange> pushConstantRanges{};
 
 	Mode(ModeConstantParameters _params) : modeParameters(_params) {};
 	Mode() : Mode(ModeConstantParameters()) {};

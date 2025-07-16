@@ -334,7 +334,7 @@ std::vector<float> JSONUtils::getFloats(const Object& JSONObj, std::string attrN
     for (size_t i = 0; i < floatsSize; i++) {
         Value curVal = floatsArr[i];
         if (CHECK_VALIDITY) assert(curVal.type == NUMBER);
-        retFloats.emplace_back(curVal.toNumber().toFloat());
+        retFloats.emplace_back(curVal.toNumber().toFloatDestructive());
     }
     return retFloats;
 };

@@ -71,20 +71,28 @@ int main(int argc, char* argv[]) {
                 }
 
                 { 
-                    auto current_time = std::chrono::high_resolution_clock::now();
-                    static auto previous_time = current_time;
-                    float elapsed = std::chrono::duration<float>(current_time - previous_time).count();
-                    previous_time = current_time;
+
+                    auto currentTime = std::chrono::high_resolution_clock::now();
+                    static auto startTime = std::chrono::high_resolution_clock::now();
+                    static auto previousTime = currentTime;
+                    float deltaTime = std::chrono::duration<float>(currentTime - previousTime).count();
+                    float totalTime = std::chrono::duration<float>(currentTime - startTime).count();
+                    previousTime = currentTime;
 
                     //if frames are taking a very long time to process,
                     //lag to avoid spiral of death:
-                    elapsed = std::min(0.1f, elapsed);
+                    deltaTime = std::min(0.1f, deltaTime);
 
-                    Mode::current->update(elapsed);
+                    Mode::current->update(deltaTime, totalTime);
                     if (!Mode::current) break;
                 }
 
-                app.drawFrame(); //TODO eventually bring into Mode
+                std::pair<VkCommandBuffer, uint32_t> beginInfo = app.beginFrame();
+                //if beginning return null,(ie if window resized and swachain needed to be resize), 
+                //beginInfo is invalid
+                if (beginInfo.first == nullptr || beginInfo.second == -1U) continue;
+                Mode::current->draw(app, beginInfo.first, beginInfo.second);
+                app.endFrame(beginInfo.first, beginInfo.second); //TODO eventually bring into Mode
             }
             app.cleanupProgram();
             app.cleanupVulkan();

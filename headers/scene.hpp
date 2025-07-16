@@ -1,6 +1,5 @@
 #pragma once
 #define NOMINMAX
-#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 #include <glm/mat4x4.hpp>
 #include <glm/vec3.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -83,21 +82,24 @@ struct Scene {
 	EnitityComponents<Material> materials{};
 	entitySize_t cameraID = std::numeric_limits<entitySize_t>().max();
 	bool sceneHasCamera() {
-		return rootID != std::numeric_limits<entitySize_t>().max();
+		return cameraID != std::numeric_limits<entitySize_t>().max();
 	}
 	EnitityComponents<Camera> cameras{};
 	EnitityComponents<Light> lights{};
 	EnitityComponents<Environment> environments{};
+	EnitityComponents<Driver> drivers{};
 
 	Scene() = default;
 	Scene(std::string filename, const ModeConstantParameters& parameters = ModeConstantParameters());
 	void printScene(const ModeConstantParameters& parameters);
 	struct DrawParameters {
-		glm::mat4 modeMat = glm::mat4();
+		glm::mat4 modelMat = glm::mat4();
 		uint32_t indicesStart = 0;
 		uint32_t numIndices = 0;
 	};
-	void drawScene(std::vector<DrawParameters> drawParams, glm::mat4& cameraTransform);
+
+	void updateDrivers(float totalElapsed, const ModeConstantParameters& parameters = ModeConstantParameters());
+	void drawScene(std::vector<DrawParameters>& drawParams, glm::mat4& cameraTransform);
 
 private:
 	enum objType : uint8_t {
@@ -135,7 +137,10 @@ private:
 
 	std::unordered_map<tmpNodeIdx, tmpNodeData, tmpNodeIdxHasher> tempGraph{};
 	//names may be aliased so we need a map per type of component
-	std::unordered_map<tmpNodeIdx, uint32_t, tmpNodeIdxHasher> tempComponents{}; //idxs into _data components of EntityComponent arrays
+	//for SceneNode, val is entityID,
+	//for all else (componenets) idxs into _data components of EntityComponent arrays
+	std::unordered_map<tmpNodeIdx, uint32_t, tmpNodeIdxHasher> tempComponents{}; 
+	std::vector<std::pair<std::string, Object>> tempDrivers{};
 
 	SceneNode initNode(const Object& JSONObj, const ModeConstantParameters& parameters);
 	Mesh initMesh(const Object& JSONObj, const ModeConstantParameters& parameters);
@@ -143,4 +148,5 @@ private:
 	Camera initCamera(const Object& JSONObj, const ModeConstantParameters& parameters);
 	Environment initEnvironment(const Object& JSONObj, const ModeConstantParameters& parameters);
 	Light initLight(const Object& JSONObj, const ModeConstantParameters& parameters);
+	Driver initDriver(const Object& JSONObj, entitySize_t entityID, const ModeConstantParameters& parameters);
 };

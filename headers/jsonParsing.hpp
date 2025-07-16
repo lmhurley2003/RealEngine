@@ -166,5 +166,7 @@ struct JSONUtils {
 
     static glm::vec3 getVec3(const Object& JSONObj, std::string attrName, bool CHECK_VALIDITY = false);
 
+    //static glm::vec4 getVec4(const Object& JSONObj, std::string attrName, bool CHECK_VALIDITY = false);
+
     static glm::quat getQuat(const Object& JSONObj, std::string attrName, bool CHECK_VALIDITY = false);
 };

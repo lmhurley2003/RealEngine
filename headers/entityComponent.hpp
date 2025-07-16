@@ -121,6 +121,14 @@ public:
 	bool contains(entitySize_t ID) {
 		return _idxs.count(ID);
 	}
+
+	std::vector<T>::iterator begin() {
+		return _data.begin();
+	}
+
+	std::vector<T>::iterator end() {
+		return _data.end();
+	}
 };
 
 /*

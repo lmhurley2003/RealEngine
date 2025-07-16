@@ -1,8 +1,6 @@
 #pragma once
 #include "mode.hpp"
-
 #include "scene.hpp"
-#include <glm/glm.hpp>
 
 #include "commandArgs.hpp"
 #include <vector>
@@ -71,12 +69,12 @@ struct PlayMode : Mode {
 
 	//descriptor / stage dependencies / shaders
 	struct UniformBuffer {
-		glm::mat4 view;
-		glm::mat4 proj;
+		alignas(16) glm::mat4 view = glm::mat4(1.0f);
+		alignas(16) glm::mat4 proj = glm::mat4(1.0f);
 	};
 
 	struct PushConsants {
-		glm::mat4 model;
+		alignas(16) glm::mat4 model;
 	};
 
 	//----- game state -----
@@ -92,7 +90,7 @@ struct PlayMode : Mode {
 	//functions called by main loop:
 	virtual bool handleEvent(Input::Event const&, glm::uvec2 const& window_size) override;
 
-	virtual void update(float elapsed) override;
+	virtual void update(float deltaTime, float totalTime) override;
 
-	//virtual void draw(glm::uvec2 const& drawable_size) override; //TODO make draw a part of program?
+	virtual void draw(const App& core, VkCommandBuffer commandBuffer, uint32_t imageIndex) override; //TODO make draw a part of program?
 };

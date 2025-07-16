@@ -3,9 +3,12 @@
 #include <stack>
 #include "utils.cpp"
 #include "jsonParsing.cpp" //TODO why does linking fail if I don't include this
+#include <cmath>
+#include <algorithm>
 
 glm::mat4 Transform::localToParent() const {
-	return glm::translate((glm::mat4_cast(rotation) * glm::scale(glm::mat4(1.0f), scale)), translation);
+	return glm::translate(glm::mat4(1.0f), translation) * glm::mat4_cast(rotation)* glm::scale(glm::mat4(1.0), scale);
+	//return glm::translate((glm::mat4_cast(rotation) * glm::scale(glm::mat4(1.0f), scale)), translation);
 }
 glm::mat4 Transform::parentToLocal() const {
 	glm::vec3 scaleCorrect = glm::vec3(scale.x == 0.0f ? 1.0f : scale.x, scale.y == 0.0f ? 1.0f : scale.y, scale.z == 0.0f ? 1.0f : scale.z);
@@ -69,6 +72,44 @@ Light Scene::initLight(const Object &JSONObj, const ModeConstantParameters& para
 	Light retLight = Light();
 
 	return retLight;
+}
+
+Driver Scene::initDriver(const Object &JSONObj, entitySize_t entityID, const ModeConstantParameters& parameters) {
+	const bool CHECK_VALIDITY = parameters.DEBUG && parameters.DEBUG_LEVEL >= 3;
+	Driver retDriver;
+
+	retDriver.entityID = entityID;
+	retDriver.values = JSONUtils::getFloats(JSONObj, "values");
+	retDriver.times = JSONUtils::getFloats(JSONObj, "times");
+	
+	std::string channel = JSONUtils::getVal(JSONObj, "channel", STRING).toString();
+	if (channel == "rotation") {
+		retDriver.setChannelRotation(true);
+		if (CHECK_VALIDITY) assert((retDriver.values.size() % 4) == 0);
+	}
+	else if (channel == "translation") {
+		retDriver.setChannelTranslation(true);
+		if (CHECK_VALIDITY) assert((retDriver.values.size() % 3) == 0);
+	}
+	else {
+		if (CHECK_VALIDITY) assert((channel == "scale") && ((retDriver.values.size() % 3) == 0));
+		retDriver.setChannelScale(true);
+	}
+	if (CHECK_VALIDITY) assert(retDriver.values.size() % retDriver.times.size() == 0);
+
+	std::string interpolation = JSONUtils::getVal(JSONObj, "interpolation", STRING).toString();
+	if (interpolation == "LINEAR") {
+		retDriver.setInterpolationLinear(true);
+	}
+	else if (interpolation == "SLERP") {
+		retDriver.setInterpolationSlerp(true);
+	}
+	else {
+		if (CHECK_VALIDITY) assert(interpolation == "STEP");
+		retDriver.setInterpolationStep(true);
+	}
+
+	return retDriver;
 }
 
 Scene::SceneNode Scene::initNode(const Object& JSONObj, const ModeConstantParameters& parameters) {
@@ -144,6 +185,7 @@ Scene::SceneNode Scene::initNode(const Object& JSONObj, const ModeConstantParame
 			tempComponents[{CAMERA, cameraName}] = idx;
 			//setting camera from command line
 			if (cameraName == parameters.START_CAMERA_NAME) cameraID = retNode.entity.getID();
+			else if (parameters.START_CAMERA_NAME == "default" && !sceneHasCamera()) cameraID = retNode.entity.getID();
 		}
 	}
 	//ENVIRONMENT CASE
@@ -283,7 +325,7 @@ Scene::Scene(std::string filename, const ModeConstantParameters& parameters) {
 			tempGraph.insert({ {CAMERA, name}, {curObj, 0} });
 		}
 		else if (type == "DRIVER") {
-			tempGraph.insert({ {DRIVER, name}, {curObj, 0} });
+			tempDrivers.emplace_back(std::make_pair(name, curObj));
 		}
 		else if (type == "DATA") {
 			tempGraph.insert({ {DATA, name}, { curObj, 0} });
@@ -337,29 +379,171 @@ Scene::Scene(std::string filename, const ModeConstantParameters& parameters) {
 		}
 	}
 
+	//now insert drivers
+	for (const auto& [driverName, driverObject] : tempDrivers) {
+		if (CHECK_VALIDITY) assert(driverObject.count("node"));
+		std::string nodeName = JSONUtils::getVal(driverObject, "node", STRING).toString();
+		if (CHECK_VALIDITY) assert(tempComponents.count({ NODE, nodeName}));
+		entitySize_t entityID = tempComponents[{NODE, nodeName}];
+
+		graph.get(entityID).entity.setIsDriverAnimated(true);
+		drivers.insert(entityID, initDriver(driverObject, entityID, parameters));
+	}
+
 	tempGraph.clear();
 	tempComponents.clear();
+	tempDrivers.clear();
 	return;
 }
 
-void Scene::drawScene(std::vector<DrawParameters> drawParams, glm::mat4& cameraTransform) {
+template<typename T>
+T interpolateLinearly(T A, T B, float t) {
+	return (1.0f - t) * A + t * B;
+}
+
+template<typename T>
+T interpolateSlerp(T A, T B, float t) {
+	float angle = std::acos(glm::dot(A, B));
+	float co1 = std::sin((1 - t) * angle) / sin(angle);
+	float co2 = std::sin(t * angle) / sin(angle);
+	return co1 * A + co2 * B;
+}
+
+void Scene::updateDrivers(float elapsed, const ModeConstantParameters& parameters) {
+	const bool CHECK_VALIDITY = parameters.DEBUG && parameters.DEBUG_LEVEL >= 3;
+	for (auto it = drivers.begin(); it != drivers.end(); ++it) {
+		const Driver& driver = *it;
+		entitySize_t entityID = driver.entityID;
+		if (!graph.get(driver.entityID).entity.isEnabled()) continue;
+		if (CHECK_VALIDITY) assert(graph.get(driver.entityID).entity.isDriverAnimated());
+
+		Transform& transform = graph.get(entityID).transform;
+
+		float tMod = fmod(elapsed, driver.times.back());
+		std::vector<float>::const_iterator tLowerIt = std::lower_bound(driver.times.begin(), driver.times.end(), tMod);
+		if (CHECK_VALIDITY) assert(tLowerIt != driver.times.end());
+		//TODO is this ternary necessary ? is it even possible to get the last element of the array?
+		std::vector<float>::const_iterator tUpperIt = (tLowerIt + 1) == driver.times.end() ? driver.times.begin() : (tLowerIt + 1);
+		float t = (tMod - *tLowerIt) / (*tUpperIt - *tLowerIt);
+
+		uint32_t tLowerIdx = tLowerIt - driver.times.begin();
+		uint32_t tUpperIdx = tUpperIt - driver.times.begin();
+		if (driver.isChannelRotation()) {
+			glm::quat valA = glm::quat(driver.values[4 * tLowerIdx + 3], driver.values[4 * tLowerIdx], driver.values[4 * tLowerIdx + 1], driver.values[4 * tLowerIdx + 2]);
+			glm::quat valB = glm::quat(driver.values[4 * tUpperIdx + 3], driver.values[4 * tUpperIdx], driver.values[4 * tUpperIdx + 1], driver.values[4 * tUpperIdx + 2]);
+			if (driver.isInterpolationLinear()) transform.rotation = interpolateLinearly<glm::quat>(valA, valB, t);
+			else if (driver.isInterpolationSlerp()) transform.rotation = interpolateSlerp<glm::quat>(valA, valB, t);
+			else transform.rotation = valA;
+		}
+		else {
+			if (CHECK_VALIDITY) assert(driver.isChannelTranslation() || driver.isChannelScale());
+			glm::vec3 valA = glm::vec3(driver.values[3 * tLowerIdx], driver.values[3 * tLowerIdx + 1], driver.values[3 * tLowerIdx + 2]);
+			glm::vec3 valB = glm::vec3(driver.values[3 * tUpperIdx], driver.values[3 * tUpperIdx + 1], driver.values[3 * tUpperIdx + 2]);
+			glm::vec3 ret;
+			if (driver.isInterpolationLinear()) ret = interpolateLinearly<glm::vec3>(valA, valB, t);
+			else if (driver.isInterpolationSlerp()) ret = interpolateSlerp<glm::vec3>(valA, valB, t);
+			else ret = valA;
+
+			if (driver.isChannelTranslation()) transform.translation = ret;
+			else transform.scale = ret;
+		}
+	}
+}
+
+/*
+void Scene::updateDrivers(float elapsed, const ModeConstantParameters& parameters) {
+	const bool CHECK_VALIDITY = parameters.DEBUG && parameters.DEBUG_LEVEL >= 3;
+	for (auto it = drivers.begin(); it != drivers.end(); ++it) {
+		const Driver& driver = *it;
+		entitySize_t entityID = driver.entityID;
+		if (!graph.get(driver.entityID).entity.isEnabled()) continue;
+		if (CHECK_VALIDITY) assert(graph.get(driver.entityID).entity.isDriverAnimated());
+
+		Transform& transform = graph.get(entityID).transform;
+
+		float tMod = fmod(elapsed, driver.times.back());
+		std::vector<float>::const_iterator tLowerIt = std::lower_bound(driver.times.begin(), driver.times.end(), tMod);
+		if (CHECK_VALIDITY) assert(tLowerIt != driver.times.end());
+		//TODO is this ternary necessary ? is it even possible to get the last element of the array?
+		std::vector<float>::const_iterator tUpperIt = (tLowerIt + 1) == driver.times.end() ? driver.times.begin() : (tLowerIt + 1);
+		float t = (tMod - *tLowerIt) / (*tUpperIt - *tLowerIt);
+
+		float* dataTarget;
+		uint32_t dataSize = -1U;
+		if (driver.isChannelTranslation()) {
+			dataTarget = reinterpret_cast<float*>(&transform.translation);
+			dataSize = 3;
+		}
+		else if (driver.isChannelScale()) {
+			dataTarget = reinterpret_cast<float*>(&transform.scale);
+			dataSize = 3;
+		}
+		else {
+			if (CHECK_VALIDITY) assert(driver.isChannelRotation());
+			dataSize = 4;
+			dataTarget = reinterpret_cast<float*>(&transform.rotation);
+		}
+
+		if (driver.isInterpolationLinear()) {
+			for (int i = 0; i < dataSize && i < 4; i++) {
+				//quaternions are stored internally as x, y, z, w, so I think this should work
+				float valA = driver.values[dataSize * (tLowerIt - driver.times.begin()) + i];
+				float valB = driver.values[dataSize * (tUpperIt - driver.times.begin()) + i];
+				*(dataTarget + i) = (1.0f - t) * valA + t * valB;
+			}
+		}
+		else if (driver.isInterpolationStep()) {
+			for (int i = 0; i < dataSize && i < 4; i++) {
+				//quaternions are stored internally as x, y, z, w, so I think this should work
+				float valA = driver.values[dataSize * (tLowerIt - driver.times.begin()) + i];
+				*(dataTarget + i) = valA;
+			}
+		}
+		else {
+			float cos;
+			const float* valAIt = &driver.values[dataSize * (tLowerIt - driver.times.begin())];
+			const float* valBIt = &driver.values[dataSize * (tUpperIt - driver.times.begin())];
+			if (dataSize == 3) cos = glm::dot(*reinterpret_cast<const glm::vec3*>(valAIt), *reinterpret_cast<const glm::vec3*>(valBIt));
+			else {
+				if (CHECK_VALIDITY) assert(dataSize == 4);
+				cos = glm::dot(*reinterpret_cast<const glm::quat*>(valAIt), *reinterpret_cast<const glm::quat*>(valBIt));
+			}
+			float angle = std::acos(cos);
+			float co1 = std::sin((1.0f - t) * angle) / sin(angle);
+			float co2 = std::sin(t * angle) / sin(angle);
+			if (dataSize == 3) {
+				glm::vec3 val = co1 * (*reinterpret_cast<const glm::vec3*>(valAIt)) + co2 * (*reinterpret_cast<const glm::vec3*>(valBIt));
+				for (int i = 0; i < 3; i++) {
+					*(dataTarget + i) = val[i];
+				}
+			}
+			else {
+				glm::quat val = co1 * (*reinterpret_cast<const glm::quat*>(valAIt)) + co2 * (*reinterpret_cast<const glm::quat*>(valBIt));
+				for (int i = 0; i < 4; i++) {
+					*(dataTarget + i) = val[i];
+				}
+			}
+		}
+	}
+}*/
+
+void Scene::drawScene(std::vector<DrawParameters>& drawParams, glm::mat4& cameraTransform) {
 	//scene transform
-	std::stack < std::pair<glm::mat4, entitySize_t>> drawStack{};
+	std::stack <std::pair<glm::mat4, entitySize_t>> drawStack{};
 	drawStack.push({glm::mat4(1.0f), rootID}); //populates mat4's diagonal with 1.0f (ie identity matrix)
 	//assumes no loops in scene tree
 	bool cameraSet = false;
 	while (!drawStack.empty()) {
 		std::pair<glm::mat4, entitySize_t> nodeEntry = drawStack.top();
 		drawStack.pop();
-		glm::mat4& curTransform = nodeEntry.first;
+		glm::mat4 curTransform = nodeEntry.first;
 		entitySize_t curEntityID = nodeEntry.second;
 		const SceneNode& curSceneNode = graph.get(curEntityID);
 		const Entity& curEntity = curSceneNode.entity;
 		
-		curTransform = curTransform * curSceneNode.transform.localToParent();
 		if (!curEntity.isEnabled()) continue;
 
-		if (curEntity.hasCamera() && (sceneHasCamera() || curEntityID == cameraID)) {
+		if (curEntity.hasCamera() && (sceneHasCamera() && curEntityID == cameraID)) {
 			cameraSet = true;
 			cameraTransform = glm::mat4(curTransform); //since we're using reference, need to use co[y constructor ?
 		}
@@ -367,6 +551,8 @@ void Scene::drawScene(std::vector<DrawParameters> drawParams, glm::mat4& cameraT
 		if (curSceneNode.hasSibling()) {
 			drawStack.push({ glm::mat4(curTransform), curSceneNode.sibling });
 		}
+
+		curTransform = curTransform * curSceneNode.transform.localToParent();
 		//since we insert child before sibling in EntityComponents, more spatial localtiy if we add child to stack last
 		if (curSceneNode.hasChild()) {
 			drawStack.push({ glm::mat4(curTransform), curSceneNode.child});
@@ -374,11 +560,11 @@ void Scene::drawScene(std::vector<DrawParameters> drawParams, glm::mat4& cameraT
 		
 		if (curEntity.hasMesh()) {
 			const Mesh& curMesh = meshes.get(curEntityID);
-			struct DrawParameters drawParam {};
-			drawParam.modeMat = std::move(curTransform);
+			struct DrawParameters drawParam{};
+			drawParam.modelMat = curTransform;
 			drawParam.indicesStart = curMesh.indexOffset;
 			drawParam.numIndices = curMesh.numIndices;
-			drawParams.emplace_back(std::move(drawParam));
+			drawParams.emplace_back(drawParam);
 		}
 	}
 
@@ -401,7 +587,11 @@ void Scene::printScene(const ModeConstantParameters& parameters) {
 		const SceneNode& curNode = graph.get(curID);
 		//This might not actually be true because entities can aliased together?
 		//if (CHECK_VALIDITY) assert(curID == curNode.entity.getID());
-		std::cout << prefixString << ">NODE with ID " << curID << ", HAS ";
+		const Transform& t = curNode.transform;
+		std::cout << prefixString << ">NODE with ID " << curID << "| pos(" << t.translation.x << "," << t.translation.y << "," << t.translation.z << ") ";
+		std::cout << "rot(" << t.rotation.x << "," << t.rotation.y << "," << t.rotation.z << "," << t.rotation.w << ") ";
+		std::cout << "scale(" << t.scale.x << "," << t.scale.y << "," << t.scale.z << ")";
+		std::cout << "| " << std::endl << "HAS ";
 		if (meshes.contains(curID)) {
 			const Mesh& curMesh = meshes.get(curID);
 			std::cout << " Mesh(numIndices:" << curMesh.numIndices << ", indexOffset:" << curMesh.indexOffset;

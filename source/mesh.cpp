@@ -57,7 +57,7 @@ void Mesh::loadMeshData(const std::string filename, const Object& JSONObj, const
 			}
 		}
 		curAttrib.stride = JSONUtils::getVal(attribInfo, "stride", NUMBER).toNumber().toSizeT();
-		curAttrib.offset = JSONUtils::getVal(attribInfo, "stride", NUMBER).toNumber().toSizeT();
+		curAttrib.offset = JSONUtils::getVal(attribInfo, "offset", NUMBER).toNumber().toSizeT();
 
 		vertexAttributes.emplace_back(curAttrib);
 	}
@@ -144,60 +144,38 @@ void Mesh::loadMeshData(const std::string filename, const Object& JSONObj, const
 		for (uint32_t i = 0; i < count; i++) {
 			//will just trust that alignment issues won't mess things up...
 			//if it is, will need to use .seekg manually and fill single position/color buffers
-			if (positionOffset != -1) {
-				buffer[i].position = *(reinterpret_cast<glm::vec3*>(charBuffer.data() + i * stride + positionOffset));
-				/*
-				buffer[i].position.x = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + positionOffset));
-				buffer[i].position.y = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + positionOffset + 1));
-				buffer[i].position.z = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + positionOffset + 2));
-				*/
-			}
-			else {
-				buffer[i].position = glm::vec3(0.0f);
-			}
+			if (positionOffset != -1) buffer[i].position = *(reinterpret_cast<glm::vec3*>(charBuffer.data() + i * stride + positionOffset));
+			/*
+			buffer[i].position.x = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + positionOffset));
+			buffer[i].position.y = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + positionOffset + 1));
+			buffer[i].position.z = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + positionOffset + 2));
+			*/
 
-			if (colorOffset != -1) {
-				buffer[i].color = *(reinterpret_cast<uint32_t*>(charBuffer.data() + i * stride + colorOffset));
+			if (colorOffset != -1) buffer[i].color = *(reinterpret_cast<uint32_t*>(charBuffer.data() + i * stride + colorOffset));
 			
-				buffer[i].position = glm::vec3(0.0f);
-			}
 #if defined(SIMPLE_VERTEX) && SIMPLE_VERTEX
 #else
-			if (normalOffset != -1) {
-				buffer[i].normal = *(reinterpret_cast<glm::vec3*>(charBuffer.data() + i * stride + normalOffset));
-				/*
-				buffer[i].position.x = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + normalOffset));
-				buffer[i].position.y = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + normalOffset + 1));
-				buffer[i].position.z = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + normalOffset + 2));
-				*/
-			}
-			else {
-				buffer[i].normal = glm::vec3(0.0f, 0.0f, 1.0f);
-			}
+			if (normalOffset != -1) buffer[i].normal = *(reinterpret_cast<glm::vec3*>(charBuffer.data() + i * stride + normalOffset));
+			/*
+			buffer[i].position.x = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + normalOffset));
+			buffer[i].position.y = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + normalOffset + 1));
+			buffer[i].position.z = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + normalOffset + 2));
+			*/
 
-			if (tangentOffset != -1) {
-				buffer[i].tangent = *(reinterpret_cast<glm::vec4*>(charBuffer.data() + i * stride + tangentOffset));
-				/*
-				buffer[i].position.x = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + normalOffset));
-				buffer[i].position.y = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + normalOffset + 1));
-				buffer[i].position.z = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + normalOffset + 2));
-				*/
-			}
-			else {
-				buffer[i].tangent = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
-			}
+			if (tangentOffset != -1) buffer[i].tangent = *(reinterpret_cast<glm::vec4*>(charBuffer.data() + i * stride + tangentOffset));
+			/*
+			buffer[i].position.x = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + normalOffset));
+			buffer[i].position.y = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + normalOffset + 1));
+			buffer[i].position.z = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + normalOffset + 2));
+			*/
 
-			if (texCoordOffset != -1) {
-				buffer[i].texCoord = *(reinterpret_cast<glm::vec4*>(charBuffer.data() + i * stride + texCoordOffset));
-				/*
-				buffer[i].position.x = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + normalOffset));
-				buffer[i].position.y = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + normalOffset + 1));
-				buffer[i].position.z = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + normalOffset + 2));
-				*/
-			}
-			else {
-				buffer[i].texCoord = glm::vec2(0.0f, 0.0f);
-			}
+			if (texCoordOffset != -1) buffer[i].texCoord = *(reinterpret_cast<glm::vec4*>(charBuffer.data() + i * stride + texCoordOffset));
+			/*
+			buffer[i].position.x = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + normalOffset));
+			buffer[i].position.y = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + normalOffset + 1));
+			buffer[i].position.z = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + normalOffset + 2));
+			*/
+
 #endif
 		}
 	}
@@ -258,6 +236,7 @@ void Mesh::loadMeshData(const std::string filename, const Object& JSONObj, const
 			}
 		}
 		file.close();
+		vertices.insert(vertices.end(), buffer.begin(), buffer.end());
 	}
 	else {
 		file.close();
