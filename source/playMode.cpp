@@ -26,7 +26,7 @@ PlayMode::PlayMode() : Mode(commandLineParameters.toModeParameters()) {
 		throw std::runtime_error("");
 	};
 	scene = Scene(modeParameters.SCENE_NAME, modeParameters);
-	scene.printScene(modeParameters);
+	
 
 	return;
 }

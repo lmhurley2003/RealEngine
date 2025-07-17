@@ -72,8 +72,8 @@ int main(int argc, char* argv[]) {
 
                 { 
 
-                    auto currentTime = std::chrono::high_resolution_clock::now();
                     static auto startTime = std::chrono::high_resolution_clock::now();
+                    auto currentTime = std::chrono::high_resolution_clock::now();
                     static auto previousTime = currentTime;
                     float deltaTime = std::chrono::duration<float>(currentTime - previousTime).count();
                     float totalTime = std::chrono::duration<float>(currentTime - startTime).count();

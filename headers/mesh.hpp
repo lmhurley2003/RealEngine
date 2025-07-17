@@ -6,8 +6,8 @@
 struct Bounds {
 	//glm::vec3 min = glm::vec3(0.0f);
 	//glm::vec3 max = glm::vec3(0.0f);
-	float minx, minY, minZ = 0.0f;
-	float maxX, maxY, maxZ = 0.0f;
+	float minx = 0.0f, minY = 0.0f, minZ = 0.0f;
+	float maxX = 0.0f, maxY = 0.0f, maxZ = 0.0f;
 };
 
 //TODO put in own mesh.hpp files

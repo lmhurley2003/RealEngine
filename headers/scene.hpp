@@ -41,9 +41,6 @@ struct Transform {
 
 	static glm::mat4 localToParent(glm::vec3 translation, glm::quat rotation, glm::vec3 scale);
 	static glm::mat4 parentToLocal(glm::vec3 translation, glm::quat rotation, glm::vec3 scale);
-	struct drawObjectInfo {
-
-	};
 };
 
 
