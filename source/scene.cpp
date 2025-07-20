@@ -180,11 +180,12 @@ Driver Scene::initDriver(const Object &JSONObj, entitySize_t entityID, const Mod
 	return retDriver;
 }
 
-Scene::SceneNode Scene::initNode(const Object& JSONObj, const ModeConstantParameters& parameters) {
+Scene::SceneNode Scene::initNode(const Object& JSONObj, const ModeConstantParameters& parameters, const entitySize_t parent) {
 	const bool CHECK_VALIDITY = parameters.DEBUG && parameters.DEBUG_LEVEL >= 3;
 	if (CHECK_VALIDITY) assert(JSONObj.count("type") && JSONUtils::getVal(JSONObj, "type", STRING).toString() == "NODE");
 
 	SceneNode retNode = SceneNode();
+	retNode.parent = parent;
 	//all .s72 transform defaults set in Transform constructor, so if the values don't exist in file we don't need the else clause
 	if (JSONObj.count("translation")) {
 		retNode.transform.translation = JSONUtils::getVec3(JSONObj, "translation", CHECK_VALIDITY);
@@ -320,7 +321,7 @@ Scene::SceneNode Scene::initNode(const Object& JSONObj, const ModeConstantParame
 		}
 		else if (childNames.size() > 0) {
 			if(CHECK_VALIDITY) assert(tempGraph.count({NODE, childNames[0]}));
-			graph.get(retNode.entity).child = initNode(tempGraph[{NODE, childNames[0]}].object, parameters).entity.getID();
+			graph.get(retNode.entity).child = initNode(tempGraph[{NODE, childNames[0]}].object, parameters, retNode.entity.getID()).entity.getID();
 		}
 		else {
 			return graph.get(retNode.entity);
@@ -338,7 +339,7 @@ Scene::SceneNode Scene::initNode(const Object& JSONObj, const ModeConstantParame
 			}
 			else {
 				if(CHECK_VALIDITY) assert(tempGraph.count({NODE, childName}));
-				siblingID = initNode(tempGraph[{NODE, childName}].object, parameters).entity.getID();
+				siblingID = initNode(tempGraph[{NODE, childName}].object, parameters, retNode.parent).entity.getID();
 				graph.get(curSceneNodeID).sibling = siblingID;
 			}
 			curSceneNodeID = siblingID;
@@ -359,6 +360,7 @@ entitySize_t Scene::addSceneNode(entitySize_t parent, SceneNode node) {
 			node.sibling = parentNode.child;
 		}
 		parentNode.child = entityID;
+		node.parent = parent;
 	}
 	else {
 		SceneNode& siblingNode = graph.get(rootID);
@@ -380,7 +382,6 @@ entitySize_t Scene::addCamera(entitySize_t parent, const Camera& camera) {
 
 	return entityID;
 }
-
 
 
 entitySize_t Scene::addOrbitCamera(entitySize_t parent, const OrbitControl& orbit, const Camera& camera) {
@@ -475,7 +476,7 @@ Scene::Scene(std::string filename, const ModeConstantParameters& parameters) {
 	std::vector<std::string> rootNames = JSONUtils::getIndicesNames(sceneNode.object, "roots");
 	if (rootNames.size() > 0) {
 		if (CHECK_VALIDITY) assert(tempGraph.count({NODE, rootNames[0] }));
-		rootID = initNode(tempGraph[{NODE, rootNames[0]}].object, parameters).entity.getID();
+		rootID = initNode(tempGraph[{NODE, rootNames[0]}].object, parameters, std::numeric_limits<entitySize_t>().max()).entity.getID();
 		if (CHECK_VALIDITY) assert(graph.contains(rootID));
 
 		entitySize_t curSceneNodeID = rootID;
@@ -491,7 +492,7 @@ Scene::Scene(std::string filename, const ModeConstantParameters& parameters) {
 			}
 			else {
 				if (CHECK_VALIDITY) assert(tempGraph.count({NODE, rootName }));
-				siblingID = initNode(tempGraph[{NODE, rootName}].object, parameters).entity.getID();
+				siblingID = initNode(tempGraph[{NODE, rootName}].object, parameters, std::numeric_limits<entitySize_t>().max()).entity.getID();
 				if (CHECK_VALIDITY) assert(graph.contains(siblingID));
 				graph.get(curSceneNodeID).sibling = siblingID;
 				//check that assignment actually appears in the graph
@@ -587,13 +588,95 @@ void Scene::updateDrivers(float elapsed, const ModeConstantParameters& parameter
 	}
 }
 
+glm::mat4 Scene::getParentToLocalFullSingular(entitySize_t entityID) {
+	glm::mat4 retTransform = glm::mat4(1.0f);
+	SceneNode curNode = graph.get(entityID);
+	do {
+		retTransform = retTransform * curNode.transform.parentToLocal();
+		if(curNode.hasParent()) curNode = graph.get(curNode.parent);
+	} while (curNode.hasParent());
 
-void Scene::drawScene(std::vector<DrawParameters>& drawParams, glm::mat4& cameraTransform) {
+	return retTransform;
+}
+
+//TODO is there a frustum x bounding box check that doesn't require 8 matrix multiplications ?
+bool Scene::frustumCull(const std::vector<glm::vec4>& frustumPlanes, const Bounds& meshBounds, const glm::mat4& modelMat) {
+	//get new world space bounding box by transforming 
+	const glm::vec3 corners[8] = {
+		glm::vec3(modelMat * glm::vec4(meshBounds.minX, meshBounds.minY, meshBounds.minZ, 1.0f)),
+		glm::vec3(modelMat * glm::vec4(meshBounds.minX, meshBounds.maxY, meshBounds.minZ, 1.0f)),
+		glm::vec3(modelMat * glm::vec4(meshBounds.minX, meshBounds.minY, meshBounds.maxZ, 1.0f)),
+		glm::vec3(modelMat * glm::vec4(meshBounds.minX, meshBounds.maxY, meshBounds.maxZ, 1.0f)),
+		glm::vec3(modelMat * glm::vec4(meshBounds.maxX, meshBounds.minY, meshBounds.minZ, 1.0f)),
+		glm::vec3(modelMat * glm::vec4(meshBounds.maxX, meshBounds.maxY, meshBounds.minZ, 1.0f)),
+		glm::vec3(modelMat * glm::vec4(meshBounds.maxX, meshBounds.minY, meshBounds.maxZ, 1.0f)),
+		glm::vec3(modelMat * glm::vec4(meshBounds.maxX, meshBounds.maxY, meshBounds.maxZ, 1.0f))
+	};
+
+	Bounds newBounds = Bounds();
+	for (size_t i = 0; i < 8; ++i) {
+		newBounds.enclose(corners[i]);
+	}
+
+	for (size_t i = 0; i < frustumPlanes.size(); ++i) {
+		const glm::vec4& g = frustumPlanes[i];
+		if ((glm::dot(g, glm::vec4(newBounds.minX, newBounds.minY, newBounds.minZ, 1.0f)) < 0.0) &&
+			(glm::dot(g, glm::vec4(newBounds.maxX, newBounds.minY, newBounds.minZ, 1.0f)) < 0.0) &&
+			(glm::dot(g, glm::vec4(newBounds.minX, newBounds.maxY, newBounds.minZ, 1.0f)) < 0.0) &&
+			(glm::dot(g, glm::vec4(newBounds.maxX, newBounds.maxY, newBounds.minZ, 1.0f)) < 0.0) &&
+			(glm::dot(g, glm::vec4(newBounds.minX, newBounds.minY, newBounds.maxZ, 1.0f)) < 0.0) &&
+			(glm::dot(g, glm::vec4(newBounds.maxX, newBounds.minY, newBounds.maxZ, 1.0f)) < 0.0) &&
+			(glm::dot(g, glm::vec4(newBounds.minX, newBounds.maxY, newBounds.maxZ, 1.0f)) < 0.0) &&
+			(glm::dot(g, glm::vec4(newBounds.maxX, newBounds.maxY, newBounds.maxZ, 1.0f)) < 0.0))
+		{
+			// Not visible - all returned negative
+			return false;
+		}
+	}
+
+	return true;
+}
+
+void Scene::drawScene(std::vector<DrawParameters>& drawParams, glm::mat4& viewTransform, glm::mat4& projTransform, const ModeConstantParameters& parameters) {
 	//scene transform
 	std::stack <std::pair<glm::mat4, entitySize_t>> drawStack{};
 	drawStack.push({glm::mat4(1.0f), rootID}); //populates mat4's diagonal with 1.0f (ie identity matrix)
 	//assumes no loops in scene tree
 	bool cameraSet = false;
+
+	//CULLING SETUP
+	glm::mat4 frustumView;
+	frustumView = sceneHasFrustumCamera() ? getParentToLocalFullSingular(cullingCameraID) : glm::mat4(1.0f);
+	if (renderCameraID == cullingCameraID) {
+		viewTransform = frustumView;
+		cameraSet = true;
+	}
+	glm::mat4 frustumProj;
+	if (sceneHasFrustumCamera()) {
+		const Camera& cam = cameras.get(cullingCameraID);
+		frustumProj = glm::perspective(cam.vfov, cam.aspect, cam.nearPlane, cam.farPlane);
+	}
+	else {
+		Camera cam = Camera();
+		frustumProj = glm::perspective(cam.vfov, cam.aspect, cam.nearPlane, cam.farPlane);
+	}
+	frustumProj[1][1] *= -1;
+	if (renderCameraID == cullingCameraID) {
+		projTransform = frustumProj;
+	}
+
+	glm::mat4 cullingMatrix = glm::transpose(frustumProj * frustumView);
+	const std::vector<glm::vec4> frustumPlanes = {
+		// left, right, bottom, top
+		(cullingMatrix[3] + cullingMatrix[0]),
+		(cullingMatrix[3] - cullingMatrix[0]),
+		(cullingMatrix[3] + cullingMatrix[1]),
+		(cullingMatrix[3] - cullingMatrix[1]),
+		// near, far
+		(cullingMatrix[3] + cullingMatrix[2]),
+		(cullingMatrix[3] - cullingMatrix[2]),
+	};
+
 	while (!drawStack.empty()) {
 		std::pair<glm::mat4, entitySize_t> nodeEntry = drawStack.top();
 		drawStack.pop();
@@ -615,24 +698,30 @@ void Scene::drawScene(std::vector<DrawParameters>& drawParams, glm::mat4& camera
 			drawStack.push({ glm::mat4(curTransform), curSceneNode.child});
 		}
 
-		if (curEntity.hasCamera() && (sceneHasCamera() && curEntityID == renderCameraID)) {
+		if (!cameraSet && curEntity.hasCamera() && (sceneHasCamera() && curEntityID == renderCameraID)) {
 			cameraSet = true;
-			cameraTransform = glm::mat4(curTransform); //since we're using reference, need to use co[y constructor ?
+			viewTransform = glm::inverse(glm::mat4(curTransform)); //since we're using reference, need to use co[y constructor ?
+			const Camera& cam = cameras.get(renderCameraID);
+			projTransform = glm::perspective(cam.vfov, cam.aspect, cam.nearPlane, cam.farPlane);
+			projTransform[1][1] *= -1;
 		}
 
 		
 		if (curEntity.hasMesh()) {
-			const Mesh& curMesh = meshes.get(curEntityID);
-			struct DrawParameters drawParam{};
-			drawParam.modelMat = curTransform;
-			drawParam.indicesStart = curMesh.indexOffset;
-			drawParam.numIndices = curMesh.numIndices;
-			drawParam.debugIndicesStart = curMesh.debugVertexOffset;
-			drawParams.emplace_back(drawParam);
+			auto meshIt = meshes.dataIterator(curEntityID);
+			if (!parameters.FRUSTUM_CULLING || frustumCull(frustumPlanes, meshIt->bounds, curTransform)) {
+				drawParams.emplace_back(DrawParameters(curTransform, meshIt));
+			}
 		}
 	}
 
-	if (!cameraSet) cameraTransform = glm::mat4(1.0f);
+	if (!cameraSet) {
+		viewTransform = glm::mat4(1.0f);
+		Camera cam = Camera();
+		projTransform = glm::perspective(cam.vfov, cam.aspect, cam.nearPlane, cam.farPlane);
+		projTransform[1][1] *= -1;
+	}
+
 	return;
 }
 

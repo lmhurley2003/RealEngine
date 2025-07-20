@@ -50,6 +50,10 @@ struct Scene {
 		//loop through this->sibling->sibling->... to loop through all children of parent of this entity
 		entitySize_t sibling = std::numeric_limits<entitySize_t>().max(); 
 		entitySize_t child = std::numeric_limits<entitySize_t>().max();
+		//since having parent does make much sense for scene trees that aren't disjoint 
+		// (nodes can be referenced by more than one node), this should be used limitedly, 
+		// as of now this is only be being used for getting the camera transform
+		entitySize_t parent = std::numeric_limits<entitySize_t>().max();
 
 		//for some reason using default causes error with clang, but this works...
 		SceneNode() noexcept{}; //NOTE creates new entity
@@ -60,6 +64,9 @@ struct Scene {
 		}
 		const bool hasChild() const {
 			return (child != std::numeric_limits<entitySize_t>().max());
+		}
+		const bool hasParent() const {
+			return (parent != std::numeric_limits<entitySize_t>().max());
 		}
 	};
 
@@ -91,13 +98,14 @@ struct Scene {
 	void printScene(const ModeConstantParameters& parameters);
 	struct DrawParameters {
 		glm::mat4 modelMat = glm::mat4();
-		uint32_t indicesStart = 0;
-		uint32_t numIndices = 0;
-		uint32_t debugIndicesStart = 0;
+		std::vector<Mesh>::const_iterator mesh;
 	};
 
 	void updateDrivers(float totalElapsed, const ModeConstantParameters& parameters = ModeConstantParameters());
-	void drawScene(std::vector<DrawParameters>& drawParams, glm::mat4& cameraTransform);
+	glm::mat4 getParentToLocalFullSingular(entitySize_t entityID);
+	bool frustumCull(const std::vector<glm::vec4>& frustumPlanes, const Bounds& meshBounds, const glm::mat4& modelMat);
+	void drawScene(std::vector<DrawParameters>& drawParams, glm::mat4& viewTransform, glm::mat4& projTransform, const ModeConstantParameters& parameters = ModeConstantParameters());
+
 	entitySize_t addSceneNode(entitySize_t parent = std::numeric_limits<entitySize_t>().max(), SceneNode node = SceneNode());
 	entitySize_t addCamera(entitySize_t parent = std::numeric_limits<entitySize_t>().max(), const Camera& camera = Camera());
 	entitySize_t addOrbitCamera(entitySize_t parent = std::numeric_limits<entitySize_t>().max(), const OrbitControl& orbit = OrbitControl(), const Camera& camera = Camera());
@@ -144,7 +152,7 @@ private:
 	std::vector<std::pair<std::string, Object>> tempDrivers{};
 	std::vector<Vertex> tempDebugVertices{};
 
-	SceneNode initNode(const Object& JSONObj, const ModeConstantParameters& parameters);
+	SceneNode initNode(const Object& JSONObj, const ModeConstantParameters& parameters, const entitySize_t parent);
 	Mesh initMesh(const Object& JSONObj, const ModeConstantParameters& parameters);
 	Material initMaterial(const Object& JSONobj, const ModeConstantParameters& parameters);
 	Camera initCamera(const Object& JSONObj, const ModeConstantParameters& parameters);

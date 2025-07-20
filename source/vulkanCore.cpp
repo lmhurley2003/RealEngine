@@ -1499,35 +1499,21 @@ std::pair<VkCommandBuffer, uint32_t> App::beginFrame() {
     bindIndexBuffer(commandBuffer);
 #endif
 
-    //TODO change if dynamic pipeline is different
-    VkViewport viewport{};
-    viewport.x = 0.0f;
-    viewport.y = 0.0f;
-    viewport.width = static_cast<float>(swapChainExtent.width);
-    viewport.height = static_cast<float>(swapChainExtent.height);
-    viewport.minDepth = 0.0f;
-    viewport.maxDepth = 1.0f; //TODO chnage maxDepth for more resolution?
-    vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
-    VkRect2D scissor{};
-    scissor.offset = { 0, 0 };
-    scissor.extent = { swapChainExtent.width, swapChainExtent.height };
-    vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-
-    //TODO desciptorSets sohuld actually be a 2D array not 3D probably
+    //TODO desciptorSets should actually be a 2D array not 3D probably
     if (uniformBuffers[flightFrame].size() > 0) {
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[flightFrame][0], 0, nullptr);
     }
 
     return { commandBuffer, imageIndex };
 }
+
 /* At a high level
 - end renderPass /(id using dynamic rendering) end rendering 
 - (if using dynamic rendering) transition image layout to present  
 - Submit the recorded command buffer
 - Present the swap chain image
 */
-
 void App::endFrame(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
     if (useDynamicRendering) {
 #if defined(DYNAMIC_RENDERING) and DYNAMIC_RENDERING

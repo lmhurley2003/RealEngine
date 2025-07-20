@@ -54,7 +54,7 @@ struct Mesh {
 	*  | /    |/
 	*  0------1
 	*/
-	inline static constexpr uint32_t DEBUG_BOUNDS_INDICES_SIZE = 19; //see indices in initMesh
+	static inline constexpr uint32_t DEBUG_BOUNDS_INDICES_SIZE = 19; //see indices in initMesh
 	static inline const std::array<Index, DEBUG_BOUNDS_INDICES_SIZE> debugIndices = { 0, 1, 2, 3, 0, 4, 5, 6, 7, 4,
 																					 PRIMITIVE_RESTART_IDX, 3, 7,
 																					 PRIMITIVE_RESTART_IDX, 2, 6,

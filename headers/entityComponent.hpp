@@ -129,6 +129,14 @@ public:
 		return _data.begin();
 	}
 
+	std::vector<T>::const_iterator dataIterator(entitySize_t entityID) {
+		return _data.begin() + _idxs[entityID];
+	}
+
+	std::vector<T>::const_iterator dataIterator(const Entity& entity) {
+		return _data.begin() + _idxs[entity.getID()];
+	}
+
 	std::vector<T>::iterator dataEnd() {
 		return _data.end();
 	}

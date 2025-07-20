@@ -86,6 +86,7 @@ void PlayMode::update(float deltaTime, float totalTime) {
 	if (actionsDown[Input::DEBUG_VIEW] >= 0.9) {
 		debugViewMode = !debugViewMode;
 		scene.cullingCameraID = sceneCamera;
+		if (!debugViewMode && scene.renderCameraID == userCamera) scene.cullingCameraID = userCamera;
 	}
 
 	if (actionsDown[Input::SCENE_CAMERA] >= 0.9) {
@@ -143,24 +144,47 @@ void PlayMode::update(float deltaTime, float totalTime) {
 }
 
 void PlayMode::draw(const App& core, VkCommandBuffer commandBuffer, uint32_t imageIndex) {
+	//TODO change if dynamic pipeline is different
+
+	double renderHeight = static_cast<double>(core.HEIGHT);
+	double renderWidth = renderHeight * scene.cameras.get(scene.renderCameraID).aspect;
+	if (renderWidth > core.WIDTH) {
+		renderWidth = static_cast<double>(core.WIDTH);
+		renderHeight = renderWidth * (1.0 / scene.cameras.get(scene.renderCameraID).aspect);
+	}
+	double heightPadding = std::max((core.HEIGHT - renderHeight) / 2.0, 0.0);
+	double widthPadding = std::max((core.WIDTH - renderWidth) / 2.0, 0.0);
+
+
+	VkViewport viewport{};
+	viewport.x = static_cast<float>(widthPadding);
+	viewport.y = static_cast<float>(heightPadding);
+	viewport.width = static_cast<float>(renderWidth);
+	viewport.height = static_cast<float>(renderHeight);
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f; //TODO chnage maxDepth for more resolution?
+	vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+	VkRect2D scissor{};
+	scissor.offset = { static_cast<int>(widthPadding), static_cast<int>(heightPadding) };
+	scissor.extent = { static_cast<uint32_t>(renderWidth), static_cast<uint32_t>(renderHeight) };
+	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
 	uint32_t numIndices, indicesSize;
 	indexBufferSize(&numIndices, &indicesSize);
 
 	std::vector<Scene::DrawParameters> drawParams;
-	glm::mat4 cameraTransform;
-	scene.drawScene(drawParams, cameraTransform);
-	glm::mat4 view = glm::inverse(cameraTransform);
+	glm::mat4 view, proj;
+	scene.drawScene(drawParams, view, proj, modeParameters);
 	Camera cameraParams = scene.sceneHasCamera() ? scene.cameras.get(scene.renderCameraID) : Camera();
-	glm::mat4 proj = glm::perspective(cameraParams.vfov, cameraParams.aspect, cameraParams.nearPlane, cameraParams.farPlane);
 	
 	UniformBuffer ubo = { view, proj };
-	ubo.proj[1][1] *= -1; //difference between OpenGL and Vulkan
 
 	core.updateUniformBuffer(descriptorBindings[0][0].index, &ubo, sizeof(UniformBuffer));
 
 	for (const Scene::DrawParameters& drawParam : drawParams) {
 		core.updatePushConstants(commandBuffer, (ShaderStageT)(VERTEX_STAGE | FRAGMENT_STAGE), sizeof(PushConsants), 0, &drawParam.modelMat);
-		vkCmdDrawIndexed(commandBuffer, drawParam.numIndices, 1, drawParam.indicesStart, 0, 0);
+		vkCmdDrawIndexed(commandBuffer, drawParam.mesh->numIndices, 1, drawParam.mesh->indexOffset, 0, 0);
 	}
 
 	//draw bounds of each mesh for debugging purposes
@@ -168,7 +192,7 @@ void PlayMode::draw(const App& core, VkCommandBuffer commandBuffer, uint32_t ima
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, core.pipelines.at(DEBUG_DRAW));
 		for (const Scene::DrawParameters& drawParam : drawParams) {
 			core.updatePushConstants(commandBuffer, (ShaderStageT)(VERTEX_STAGE | FRAGMENT_STAGE), sizeof(PushConsants), 0, &drawParam.modelMat);
-			vkCmdDrawIndexed(commandBuffer, Mesh::DEBUG_BOUNDS_INDICES_SIZE, 1, Mesh::sharedDebugIndexOffset, Mesh::sharedDebugVertexOffset + drawParam.debugIndicesStart, 0);
+			vkCmdDrawIndexed(commandBuffer, Mesh::DEBUG_BOUNDS_INDICES_SIZE, 1, Mesh::sharedDebugIndexOffset, Mesh::sharedDebugVertexOffset + drawParam.mesh->debugVertexOffset, 0);
 		}
 	}
 }
