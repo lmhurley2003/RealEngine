@@ -7,61 +7,6 @@
 #include <array>
 #include <deque>
 
-//Definitions to remember
-/*
-// DEBUG_LEVEL
-enum : uint32_t {
-	NONE = 0,
-	SEVERE = 1, //critical issues
-	MODERATE = 2, //critical issues + validation
-	ALL = 3 //critical issues + validation + sanity checks
-};
-
-enum ShaderStageT : uint32_t {
-	VERTEX,
-	TESSELATION_CONTROL,
-	TESSELATION_EVALUATION,
-	GEOMETRY,
-	MESH,
-	CLUSTER_CULLING,
-	COMPUTE,
-	FRAGMENT
-};
-
-enum PipelineStageT : uint32_t {
-	SHADOWMAP,
-	PREPROCESS,
-	GBUFFER,
-	MAIN_RENDER,
-	DEBUG_DRAW,
-	POSTPROCESS,
-	UI
-};
-
-//matches enum definitions for VK_TYOE_DESCRITOR_BIT
-enum DescriptorTypeT : uint32_t {
-	SAMPLER = 0,
-	COMBINED_IMAGE_SAMPLER = 1,
-	SAMPLED_IMAGE = 2,
-	STORAGE_IMAGE = 3,
-	UNIFORM_TEXEL_BUFFER = 4,
-	STORAGE_TEXEL_BUFFER = 5,
-	UNIFORM_BUFFER = 6,
-	STORAGE_BUFFER = 7,
-	UNIFORM_BUFFER_DYNAMIC = 8,
-	STORAGE_BUFFER_DYNAMIC = 9,
-	INPUT_ATTACHMENT = 10,
-};
-
-
-struct DescriptorBinding {
-	DescriptorTypeT type;
-	int count = 1;
-	int size = 0; //used for uniform and storage buffers
-	int bufferIndex = -1; //idx into buffer saved side of App;
-};
-
-*/
 
 struct PlayMode : Mode {
 	PlayMode();
@@ -79,16 +24,26 @@ struct PlayMode : Mode {
 
 	//----- game state -----
 
-	//input tracking:       //debug console is last elements
-	//for digital inputs, 0 if released, 1 if pressed
-	//cursor move ranges can vary
-	//std::array<float, Input::ActionType_t::DEBUG_CONSOLE> actions;
+	//actions that just triggered this frame
+	std::array<double, Input::ActionType_t::MISC + 1> actionsHeld = std::array<double, Input::ActionType_t::MISC + 1>{0.0};
+	//actions that are held down, +1 for each key pertaining to that action is held (so may be more than 1)
+	std::array<double, Input::ActionType_t::MISC+1> actionsDown;
+	//actions that are just released this frame
+	std::array<double, Input::ActionType_t::MISC+1> actionsReleased;
+	//saved position is in 0-1 range
+	double cursorXPosition = 0.0f;
+	double cursorYPosition = 0.0f;
+	double cursorXOffset = 0.0f;
+	double cursorYOffset = 0.0f;
 
 	//scene local to this program instance
 	Scene scene{};
+	entitySize_t sceneCamera = std::numeric_limits<entitySize_t>().max();
+	entitySize_t userCamera = std::numeric_limits<entitySize_t>().max();
+	bool debugViewMode = false;
 
 	//functions called by main loop:
-	virtual bool handleEvent(Input::Event const&, glm::uvec2 const& window_size) override;
+	virtual bool handleEvent(std::queue<Input::Event>& eventQueue, glm::uvec2 const& window_size) override;
 
 	virtual void update(float deltaTime, float totalTime) override;
 

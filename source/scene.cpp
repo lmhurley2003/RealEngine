@@ -5,6 +5,7 @@
 #include "jsonParsing.cpp" //TODO why does linking fail if I don't include this
 #include <cmath>
 #include <algorithm>
+#include <random>
 
 glm::mat4 Transform::localToParent() const {
 	return glm::translate(glm::mat4(1.0f), translation) * glm::mat4_cast(rotation)* glm::scale(glm::mat4(1.0), scale);
@@ -12,8 +13,26 @@ glm::mat4 Transform::localToParent() const {
 }
 glm::mat4 Transform::parentToLocal() const {
 	glm::vec3 scaleCorrect = glm::vec3(scale.x == 0.0f ? 1.0f : scale.x, scale.y == 0.0f ? 1.0f : scale.y, scale.z == 0.0f ? 1.0f : scale.z);
-	return glm::scale((glm::mat4_cast(glm::inverse(rotation)) * glm::translate(glm::mat4(1.0f), -translation)), 1.0f / scaleCorrect);
-	//return glm::scale(mat4(1.0f), 1.0f / scale) * toMat4(inverse(rotation)) * translate(mat4(1.0f), -translation);
+	//return glm::scale((glm::mat4_cast(glm::inverse(rotation)) * glm::translate(glm::mat4(1.0f), -translation)), 1.0f / scaleCorrect);
+	return glm::scale(glm::mat4(1.0f), 1.0f / scaleCorrect) * glm::mat4_cast(inverse(rotation)) * glm::translate(glm::mat4(1.0f), -translation);
+}
+
+//forward is -z axis with +y being upward and +x being rightward
+glm::mat4 Transform::cameraParentToLocal() const {
+	glm::mat3 rotationMatrix(
+		rotation * glm::vec3(1.0f, 0.0f, 0.0f), //right vector
+		rotation * glm::vec3(0.0f, 1.0f, 0.0f), // up vector
+		rotation * glm::vec3(0.0f, 0.0f, 1.0f) //forward vector
+	);
+	return glm::mat4_cast(inverse(rotation)) * glm::translate(glm::mat4(1.0f), -translation);
+}
+glm::mat4 Transform::cameraLocalToParent() const {
+	glm::mat3 rotationMatrix(
+		rotation * glm::vec3(1.0f, 0.0f, 0.0f), //right vector
+		rotation * glm::vec3(0.0f, 1.0f, 0.0f), // up vector
+		rotation * glm::vec3(0.0f, 0.0f, 1.0f) //forward vector
+	);
+	return glm::translate(glm::mat4(1.0f), translation) * glm::mat4_cast(rotation);
 }
 
 glm::mat4 Transform::localToParent(glm::vec3 translation, glm::quat rotation, glm::vec3 scale) {
@@ -24,12 +43,19 @@ glm::mat4 Transform::parentToLocal(glm::vec3 translation, glm::quat rotation, gl
 	return glm::scale((glm::mat4_cast(glm::inverse(rotation)) * glm::translate(glm::mat4(1.0f), -translation)), 1.0f / scaleCorrect);
 }
 
+void Transform::matchOrbitControl(const OrbitControl& orbit) {
+	std::pair<glm::quat, glm::vec3> orientationPosition = orbit.toOrientationPosition();
+	rotation = orientationPosition.first;
+	translation = orientationPosition.second;
+}
+
 bool isSimpleMaterial(Object obj) {
 	return !(obj.count("pbr") || obj.count("lambertian") || obj.count("environment") || obj.count("mirror"));
 }
 
 
 Mesh Scene::initMesh(const Object& JSONObj, const ModeConstantParameters& parameters) {
+	const bool CHECK_VALIDITY = parameters.DEBUG && parameters.DEBUG_LEVEL >= 3;
 	Mesh retMesh = Mesh();
 
 	Object attributes = JSONUtils::getVal(JSONObj, "attributes", OBJECT).toObject();
@@ -37,6 +63,46 @@ Mesh Scene::initMesh(const Object& JSONObj, const ModeConstantParameters& parame
 	std::string sourceFile = JSONUtils::getVal(position, "src", STRING).toString();
 	
 	retMesh.loadMeshData(sourceFile, JSONObj, parameters);
+
+	//add vertices and indices for wireframe cube representing the bounds of the mesh
+	if (parameters.ENABLE_DEBUG_VIEW) {
+
+		std::string name = JSONUtils::getVal(JSONObj, "name", STRING).toString();
+		uint32_t nameHash = std::hash<std::string>{}(name);
+		std::mt19937 randomGen(nameHash); // Seed the Mersenne Twister engine
+		std::uniform_int_distribution<uint32_t> distribution(0, std::numeric_limits<uint32_t>::max()); 
+		uint32_t randomColor = distribution(randomGen); // Generate a random uint32_t
+		randomColor |= 0xFF; //make sure alpha is 1
+
+		Bounds b = retMesh.bounds;
+		b.minX -= Mesh::BOUNDS_INFLATE_FACTOR; b.minY -= Mesh::BOUNDS_INFLATE_FACTOR; b.minZ -= Mesh::BOUNDS_INFLATE_FACTOR;
+		b.maxX += Mesh::BOUNDS_INFLATE_FACTOR; b.maxY += Mesh::BOUNDS_INFLATE_FACTOR; b.maxZ += Mesh::BOUNDS_INFLATE_FACTOR;
+		//sanity check, make sure Bounds b was copied locally and is not a reference
+		if (CHECK_VALIDITY) assert(Mesh::BOUNDS_INFLATE_FACTOR == 0.0f || (retMesh.bounds.minX > b.minX));
+
+		/*
+		*    7------6
+		*   / |    /|
+		*  4------5 |
+		*  |  |   | |
+		*  |  3---| 2
+		*  | /    |/
+		*  0------1
+		*/
+
+		std::vector<glm::vec3> boundsPositions = { /*0*/{b.minX, b.minY, b.minZ}, /*1*/ {b.maxX, b.minY, b.minZ},
+												   /*2*/{b.maxX, b.maxY, b.minZ}, /*3*/ {b.minX, b.maxY, b.minZ},
+			                                       /*4*/{b.minX, b.minY, b.maxZ}, /*5*/ {b.maxX, b.minY, b.maxZ},
+												   /*6*/{b.maxX, b.maxY, b.maxZ}, /*7*/ {b.minX, b.maxY, b.maxZ} };
+		Vertex vert{};
+		vert.color = randomColor;// randomColor;
+		retMesh.debugVertexOffset = tempDebugVertices.size();
+		for (glm::vec3 pos : boundsPositions) {
+			vert.position = pos;
+			tempDebugVertices.emplace_back(vert);
+		}
+	}
+	
 	return retMesh;
 };
 
@@ -81,6 +147,8 @@ Driver Scene::initDriver(const Object &JSONObj, entitySize_t entityID, const Mod
 	retDriver.entityID = entityID;
 	retDriver.values = JSONUtils::getFloats(JSONObj, "values");
 	retDriver.times = JSONUtils::getFloats(JSONObj, "times");
+	//set as not static
+	graph.get(entityID).entity.setIsStatic(false);
 	
 	std::string channel = JSONUtils::getVal(JSONObj, "channel", STRING).toString();
 	if (channel == "rotation") {
@@ -184,8 +252,14 @@ Scene::SceneNode Scene::initNode(const Object& JSONObj, const ModeConstantParame
 			int idx = (cameras.insert(retNode.entity, initCamera(cameraObj, parameters)));
 			tempComponents[{CAMERA, cameraName}] = idx;
 			//setting camera from command line
-			if (cameraName == parameters.START_CAMERA_NAME) cameraID = retNode.entity.getID();
-			else if (parameters.START_CAMERA_NAME == "default" && !sceneHasCamera()) cameraID = retNode.entity.getID();
+			if (cameraName == parameters.START_CAMERA_NAME) {
+				renderCameraID = retNode.entity.getID();
+				cullingCameraID = retNode.entity.getID();
+			}
+			else if (parameters.START_CAMERA_NAME == "default" && !sceneHasCamera()) {
+				renderCameraID = retNode.entity.getID();
+				cullingCameraID = retNode.entity.getID();
+			}
 		}
 	}
 	//ENVIRONMENT CASE
@@ -235,7 +309,7 @@ Scene::SceneNode Scene::initNode(const Object& JSONObj, const ModeConstantParame
 
 
 	//NOW INIT CHILDREN
-	//TODO change retNode to refernce to stop repeated calls to graph.get()
+	//TODO change retNode to refernce to stop repeated calls to graph.get() 
 	if (JSONObj.count("children")) {
 		std::vector<std::string> childNames = JSONUtils::getIndicesNames(JSONObj, "children", CHECK_VALIDITY);
 		
@@ -272,6 +346,54 @@ Scene::SceneNode Scene::initNode(const Object& JSONObj, const ModeConstantParame
 	}
 
 	return graph.get(retNode.entity);
+}
+
+//if no parent is supplied, adds as sibling to root node
+entitySize_t Scene::addSceneNode(entitySize_t parent, SceneNode node) {
+	//constructor of SceneNode automatically creates a new entity
+	entitySize_t entityID = node.entity.getID();
+
+	if (parent != std::numeric_limits<entitySize_t>().max()) {
+		SceneNode& parentNode = graph.get(parent);
+		if (parentNode.hasChild()) {
+			node.sibling = parentNode.child;
+		}
+		parentNode.child = entityID;
+	}
+	else {
+		SceneNode& siblingNode = graph.get(rootID);
+		if (siblingNode.hasSibling()) {
+			node.sibling = siblingNode.sibling;
+		}
+		siblingNode.sibling = entityID;
+	}
+
+	graph.insert(entityID, node);
+	return entityID;
+}
+
+entitySize_t Scene::addCamera(entitySize_t parent, const Camera& camera) {
+	entitySize_t entityID = addSceneNode(parent);
+	Entity& entity = graph.get(entityID).entity;
+	entity.setHasCamera(true);
+	cameras.insert(entityID, camera);
+
+	return entityID;
+}
+
+
+
+entitySize_t Scene::addOrbitCamera(entitySize_t parent, const OrbitControl& orbit, const Camera& camera) {
+	entitySize_t entityID = addCamera(parent, camera);
+	Entity& entity = graph.get(entityID).entity;
+	entity.setHasOrbitControl(true);
+
+	orbitControls.insert(entityID, orbit);
+
+	//update scene transform to match the implied transform from the orbit
+	graph.get(entityID).transform.matchOrbitControl(orbit);
+
+	return entityID;
 }
 
 Scene::Scene(std::string filename, const ModeConstantParameters& parameters) {
@@ -390,9 +512,22 @@ Scene::Scene(std::string filename, const ModeConstantParameters& parameters) {
 		drivers.insert(entityID, initDriver(driverObject, entityID, parameters));
 	}
 
+	//now insert debug bounds vertices and indices into true vertex/index buffer
+	if (parameters.ENABLE_DEBUG_VIEW) {
+		if (CHECK_VALIDITY) assert(tempDebugVertices.size() % 8 == 0);
+
+		Mesh::sharedDebugIndexOffset = indices.size();
+		Mesh::sharedDebugVertexOffset = vertices.size();
+		vertices.reserve(vertices.size() + tempDebugVertices.size());
+		vertices.insert(vertices.end(), tempDebugVertices.begin(), tempDebugVertices.end());
+		indices.reserve(indices.size() + Mesh::DEBUG_BOUNDS_INDICES_SIZE);
+		indices.insert(indices.end(), Mesh::debugIndices.begin(), Mesh::debugIndices.end());
+	}
+
 	tempGraph.clear();
 	tempComponents.clear();
 	tempDrivers.clear();
+	tempDebugVertices.clear();
 	return;
 }
 
@@ -413,7 +548,7 @@ T interpolateSlerp(T A, T B, float t) {
 
 void Scene::updateDrivers(float elapsed, const ModeConstantParameters& parameters) {
 	const bool CHECK_VALIDITY = parameters.DEBUG && parameters.DEBUG_LEVEL >= 3;
-	for (auto it = drivers.begin(); it != drivers.end(); ++it) {
+	for (auto it = drivers.dataBegin(); it != drivers.dataEnd(); ++it) {
 		const Driver& driver = *it;
 		entitySize_t entityID = driver.entityID;
 		if (!graph.get(driver.entityID).entity.isEnabled()) continue;
@@ -469,10 +604,6 @@ void Scene::drawScene(std::vector<DrawParameters>& drawParams, glm::mat4& camera
 		
 		if (!curEntity.isEnabled()) continue;
 
-		if (curEntity.hasCamera() && (sceneHasCamera() && curEntityID == cameraID)) {
-			cameraSet = true;
-			cameraTransform = glm::mat4(curTransform); //since we're using reference, need to use co[y constructor ?
-		}
 		//TODO check if all these explicity copy constructors + 1 one std::move saves time than just all copy constructors
 		if (curSceneNode.hasSibling()) {
 			drawStack.push({ glm::mat4(curTransform), curSceneNode.sibling });
@@ -483,6 +614,12 @@ void Scene::drawScene(std::vector<DrawParameters>& drawParams, glm::mat4& camera
 		if (curSceneNode.hasChild()) {
 			drawStack.push({ glm::mat4(curTransform), curSceneNode.child});
 		}
+
+		if (curEntity.hasCamera() && (sceneHasCamera() && curEntityID == renderCameraID)) {
+			cameraSet = true;
+			cameraTransform = glm::mat4(curTransform); //since we're using reference, need to use co[y constructor ?
+		}
+
 		
 		if (curEntity.hasMesh()) {
 			const Mesh& curMesh = meshes.get(curEntityID);
@@ -490,6 +627,7 @@ void Scene::drawScene(std::vector<DrawParameters>& drawParams, glm::mat4& camera
 			drawParam.modelMat = curTransform;
 			drawParam.indicesStart = curMesh.indexOffset;
 			drawParam.numIndices = curMesh.numIndices;
+			drawParam.debugIndicesStart = curMesh.debugVertexOffset;
 			drawParams.emplace_back(drawParam);
 		}
 	}

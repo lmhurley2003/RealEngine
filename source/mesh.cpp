@@ -2,6 +2,39 @@
 #include <fstream>
 #include <algorithm>
 
+
+void Bounds::enclose(float x, float y, float z) {
+	minX = std::min(x, minX); minY = std::min(y, minY); minZ = std::min(z, minZ);
+	maxX = std::max(x, maxX); maxY = std::max(y, maxY); maxZ = std::max(z, maxZ);
+}
+
+void Bounds::enclose(glm::vec3 pt) {
+	minX = std::min(pt.x, minX); minY = std::min(pt.y, minY); minZ = std::min(pt.z, minZ);
+	maxX = std::max(pt.x, maxX); maxY = std::max(pt.y, maxY); maxZ = std::max(pt.z, maxZ);
+}
+void Bounds::enclose(Bounds bounds) {
+	enclose(bounds.minX, bounds.minY, bounds.minZ);
+	enclose(bounds.maxX, bounds.maxY, bounds.maxZ);
+}
+void Bounds::fixZeroVolume(){
+	if (maxX - minX < MIN_AXIS_SIZE) {
+		float centerX = (maxX + minX) / 2.0f;
+		minX = centerX - (MIN_AXIS_SIZE / 2.0f);
+		maxX = centerX + (MIN_AXIS_SIZE / 2.0f);
+	}
+	if (maxY - minY < MIN_AXIS_SIZE) {
+		float centerY = (maxY + minY) / 2.0f;
+		minY = centerY - (MIN_AXIS_SIZE / 2.0f);
+		maxY = centerY + (MIN_AXIS_SIZE / 2.0f);
+	}
+	if (maxZ - minZ < MIN_AXIS_SIZE) {
+		float centerZ = (maxZ + minZ) / 2.0f;
+		minZ = centerZ - (MIN_AXIS_SIZE / 2.0f);
+		maxZ = centerZ + (MIN_AXIS_SIZE / 2.0f);
+	}
+}
+
+
 //will populate vertex and index buffers manually
 void Mesh::toIndexed(const std::vector<Vertex>& srcBuffer) {
 	indices.reserve(indices.size() + srcBuffer.size());
@@ -96,24 +129,9 @@ void Mesh::loadMeshData(const std::string filename, const Object& JSONObj, const
 		for (uint32_t i = 0; i < count; i++) {
 			//will just trust that alignment issues won't mess things up...
 			//if it is, will need to use .seekg manually and fill single position/color buffers
-			if (positionOffset != -1) {
-				buffer[i].position = *(reinterpret_cast<glm::vec3*>(charBuffer.data() + i * stride + positionOffset));
-				/*
-				buffer[i].position.x = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + positionOffset));
-				buffer[i].position.y = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + positionOffset + 1));
-				buffer[i].position.z = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + positionOffset + 2));
-				*/
-			}
-			else {
-				buffer[i].position = glm::vec3(0.0f);
-			}
+			if (positionOffset != -1) buffer[i].position = *(reinterpret_cast<glm::vec3*>(charBuffer.data() + i * stride + positionOffset));
 
-			if (colorOffset != -1) {
-				buffer[i].color = *(reinterpret_cast<uint32_t*>(charBuffer.data() + i * stride + colorOffset));
-			}
-			else {
-				buffer[i].position = glm::vec3(0.0f);
-			}
+			if (colorOffset != -1) buffer[i].color = *(reinterpret_cast<uint32_t*>(charBuffer.data() + i * stride + colorOffset));
 
 		}
 		charBuffer.clear();
@@ -145,42 +163,20 @@ void Mesh::loadMeshData(const std::string filename, const Object& JSONObj, const
 			//will just trust that alignment issues won't mess things up...
 			//if it is, will need to use .seekg manually and fill single position/color buffers
 			if (positionOffset != -1) buffer[i].position = *(reinterpret_cast<glm::vec3*>(charBuffer.data() + i * stride + positionOffset));
-			/*
-			buffer[i].position.x = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + positionOffset));
-			buffer[i].position.y = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + positionOffset + 1));
-			buffer[i].position.z = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + positionOffset + 2));
-			*/
-
 			if (colorOffset != -1) buffer[i].color = *(reinterpret_cast<uint32_t*>(charBuffer.data() + i * stride + colorOffset));
 			
 #if defined(SIMPLE_VERTEX) && SIMPLE_VERTEX
 #else
 			if (normalOffset != -1) buffer[i].normal = *(reinterpret_cast<glm::vec3*>(charBuffer.data() + i * stride + normalOffset));
-			/*
-			buffer[i].position.x = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + normalOffset));
-			buffer[i].position.y = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + normalOffset + 1));
-			buffer[i].position.z = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + normalOffset + 2));
-			*/
-
 			if (tangentOffset != -1) buffer[i].tangent = *(reinterpret_cast<glm::vec4*>(charBuffer.data() + i * stride + tangentOffset));
-			/*
-			buffer[i].position.x = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + normalOffset));
-			buffer[i].position.y = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + normalOffset + 1));
-			buffer[i].position.z = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + normalOffset + 2));
-			*/
-
 			if (texCoordOffset != -1) buffer[i].texCoord = *(reinterpret_cast<glm::vec4*>(charBuffer.data() + i * stride + texCoordOffset));
-			/*
-			buffer[i].position.x = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + normalOffset));
-			buffer[i].position.y = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + normalOffset + 1));
-			buffer[i].position.z = *(reinterpret_cast<float*>(charBuffer.data() + stride * i + normalOffset + 2));
-			*/
 
 #endif
 		}
 	}
 
 	indexOffset = indices.size();
+	uint32_t uniqueVerticesStart = vertices.size();
 	//now stream indices if available
 	if (JSONObj.count("indicies")) {
 		Object indicesAttr = JSONUtils::getVal(JSONObj, "indices", OBJECT).toObject();
@@ -198,8 +194,7 @@ void Mesh::loadMeshData(const std::string filename, const Object& JSONObj, const
 		}
 
 		size_t indexCharBufferSize = static_cast<size_t>(file.tellg()) - offset;
-		file.seekg(offset);
-
+		file.seekg(offset); 
 		std::string indexFormat = JSONUtils::getVal(JSONObj, "format", STRING).toString();
 		uint32_t indexSize;
 		if (indexFormat == "UINT16") indexSize = 2;
@@ -243,4 +238,11 @@ void Mesh::loadMeshData(const std::string filename, const Object& JSONObj, const
 		numIndices = buffer.size();
 		toIndexed(buffer);
 	}
+	uint32_t uniqueVerticesEnd = vertices.size();
+	//fill in bounds structure
+	for (uint32_t i = uniqueVerticesStart; i < uniqueVerticesEnd; i++) {
+		bounds.enclose(vertices[i].position);
+	}
+	bounds.fixZeroVolume();
+
 }

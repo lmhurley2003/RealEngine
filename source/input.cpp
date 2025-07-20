@@ -14,6 +14,10 @@ void Input::keyCallback(GLFWwindow* window, int key, int scancode, int action, i
 	}
 }
 
+void Input::cursorPosCallback(GLFWwindow* window, double xPos, double yPos) {
+	inputEventsQueue.emplace(Event(Event::EventType_t::CURSOR_MOVE, xPos, yPos));
+}
+
 void Input::joystickCallback(int jid, int event) {
 	inputEventsQueue.emplace(Event(Event::EventType_t::JOYSTICK_CONNECT, jid, event));
 }
@@ -33,6 +37,11 @@ void Input::mouseButtonCallback(GLFWwindow* window, int button, int action, int 
 	}
 }
 
+void Input::scrollCallback(GLFWwindow* window, double xoffset, double yoffset)
+{
+	inputEventsQueue.emplace(Event(Event::EventType_t::SCROLL_EVENT, xoffset, yoffset));
+}
+
 std::queue<Input::Event> Input::inputEventsQueue{};
 std::unordered_map<int, Input::ActionType_t> Input::actionMap =
 {
@@ -50,9 +59,22 @@ std::unordered_map<int, Input::ActionType_t> Input::actionMap =
 
 	   {GLFW_MOUSE_BUTTON_LEFT, LEFT_CLICK},
 	   {GLFW_MOUSE_BUTTON_RIGHT, RIGHT_CLICK},
+	   {GLFW_MOUSE_BUTTON_MIDDLE, MIDDLE_CLICK},
+
+	   {GLFW_KEY_LEFT_SHIFT, SHIFT},
+	   {GLFW_KEY_RIGHT_SHIFT, SHIFT},
+
+	   {GLFW_KEY_LEFT_ALT, ALT},
+	   {GLFW_KEY_RIGHT_ALT, ALT},
 
 	   {GLFW_KEY_SPACE, ACCEPT},
 	   {GLFW_KEY_ENTER, ACCEPT},
+
+	   {GLFW_KEY_U, USER_CAMERA},
+	   {GLFW_KEY_R, SCENE_CAMERA},
+	   {GLFW_KEY_Q, PREV_CAMERA},
+	   {GLFW_KEY_E, NEXT_CAMERA},
+	   {GLFW_KEY_X, DEBUG_VIEW},
 
 	   {GLFW_KEY_BACKSPACE, BACK},
 	   {GLFW_KEY_ESCAPE, BACK},   //TODO should escape be special input that quits \ brings up quit menu?

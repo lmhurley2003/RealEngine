@@ -1,8 +1,5 @@
 #include "entityComponent.hpp"
 
-uint32_t Entity::totalEntities = 0;
-uint32_t Entity::currentEntities = 0;
-
 bool Entity::isEnabled() const {
 	return (flags & ENTITY_IS_ENABLED);
 }
@@ -30,6 +27,11 @@ bool Entity::hasLight() const {
 bool Entity::hasCamera() const {
 	return (flags & ENTITY_HAS_CAMERA);
 }
+
+bool Entity::hasOrbitControl() const {
+	return (flags & ENTITY_HAS_ORBIT_CONTROL);
+}
+
 bool Entity::hasEnvironmentNode() const {
 	return (flags & ENTITY_HAS_ENVIRONMENT_NODE);
 }
@@ -64,6 +66,11 @@ void Entity::setHasLight(bool onOff) {
 void Entity::setHasCamera(bool onOff) {
 	if (onOff) (flags |= ENTITY_HAS_CAMERA);
 	else (flags &= ~ENTITY_HAS_CAMERA);
+}
+
+void Entity::setHasOrbitControl(bool onOff) {
+	if (onOff) (flags |= ENTITY_HAS_ORBIT_CONTROL);
+	else (flags &= ~ENTITY_HAS_ORBIT_CONTROL);
 }
 void Entity::setHasEnvironmentNode(bool onOff) {
 	if (onOff) (flags |= ENTITY_HAS_ENVIRONMENT_NODE);

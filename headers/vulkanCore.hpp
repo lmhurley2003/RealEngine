@@ -121,8 +121,9 @@ private:
     std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
     VkPipelineLayout pipelineLayout; //push shader uniform definitions
     VkRenderPass renderPass;
+public:
     std::unordered_map<PipelineStageT, VkPipeline> pipelines;
-
+private:
     std::vector<VkFramebuffer> swapChainFramebuffers;
 
     enum QueueType : uint32_t {

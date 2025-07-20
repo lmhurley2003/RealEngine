@@ -95,7 +95,7 @@ struct Mode : std::enable_shared_from_this<Mode> {
 	//handle_event is called when new mouse or keyboard events are received:
 	// (note that this might be many times per frame or never)
 	//The function should return 'true' if it handled the event.
-	virtual bool handleEvent(Input::Event const&, glm::uvec2 const& window_size) { return false; }
+	virtual bool handleEvent(std::queue<Input::Event>& eventQueue, glm::uvec2 const& window_size) { return false; }
 
 	//update is called at the start of a new frame, after events are handled:
 	// 'elapsed' is time in seconds since the last call to 'update'

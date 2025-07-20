@@ -8,8 +8,9 @@ typedef uint32_t entitySize_t;
 struct Entity {
 private:
 	entitySize_t id;
-	static uint32_t currentEntities; //current number of entities in scene, incremented on entity addition, decremented on entity deletetion
-	static uint32_t totalEntities; //total number of entities instantiated in runtime of scene, incremented on entity addition, NOT decremented on entity deletion
+	inline static uint32_t currentEntities = 0; //current number of entities in scene, incremented on entity addition, decremented on entity deletetion
+	inline static uint32_t totalEntities = 0; //total number of entities instantiated in runtime of scene, incremented on entity addition, NOT decremented on entity deletion
+	
 	static const uint32_t ENTITY_IS_ENABLED = (0x1U << 0);
 	static const uint32_t ENTITY_IS_STATIC = (0x1U << 1); //if not static, is dynamc
 	static const uint32_t ENTITY_IS_DRIVER_ANIMATED = (0x1U << 2); //TODO implement driver animations, also maybe don't need static flag, just determine from whether it has animation components
@@ -17,7 +18,8 @@ private:
 	static const uint32_t ENTITY_IS_BONE_ANIMATED = (0x1U << 4);
 	static const uint32_t ENTITY_HAS_LIGHT = (0x1U << 5);
 	static const uint32_t ENTITY_HAS_CAMERA = (0x1U << 6);
-	static const uint32_t ENTITY_HAS_ENVIRONMENT_NODE = (0x1U << 7);
+	static const uint32_t ENTITY_HAS_ORBIT_CONTROL = (0x1U << 7);
+	static const uint32_t ENTITY_HAS_ENVIRONMENT_NODE = (0x1U << 8);
 
 	entitySize_t flags = (0x0U | ENTITY_IS_ENABLED | ENTITY_IS_STATIC); //TODO is flag paramter necessary ?
 
@@ -29,6 +31,7 @@ public:
 	bool isBoneAnimated() const;
 	bool hasLight() const;
 	bool hasCamera() const;
+	bool hasOrbitControl() const;
 	bool hasEnvironmentNode() const;
 
 	void setIsEnabled(bool onOff);
@@ -38,6 +41,7 @@ public:
 	void setIsBoneAnimation(bool onOff);
 	void setHasLight(bool onOff);
 	void setHasCamera(bool onOff);
+	void setHasOrbitControl(bool onOff);
 	void setHasEnvironmentNode(bool onOff);
 
 	entitySize_t getID() const { return id; };
@@ -70,16 +74,6 @@ public:
 		return _data.at(_idxs[id]);
 	}
 
-	//TODO use std::move to be more efficient, should be fine since idk where else we would be storing these components
-	//except for within the _data vectors
-	//returns idx into internal _data array, allows for intentional aliasing of components between entities
-	//uint32_t insert(const Entity& key, const T& val) {
-	//	uint32_t idx = static_cast<uint32_t>(_data.size());
-	//	_idxs.insert({ key.getID(), idx });
-	//	_data.emplace_back(val);
-	//	return idx;
-	//}
-
 	template<typename U>
 	uint32_t insert(entitySize_t key, U&& val) {
 		static_assert(std::is_same<std::decay_t<U>, T>::value, "Inserted type must be exactly T");
@@ -98,13 +92,6 @@ public:
 		return idx;
 	}
 
-	//uint32_t insert(entitySize_t key, const T& val) {
-	//	uint32_t idx = static_cast<uint32_t>(_data.size());
-	//	_idxs.insert({ key, idx});
-	//	_data.emplace_back(val);
-	//	return idx;
-	//}
-
 	//set entity has component from component that already exists in EntiyComponent
 	void insertExisting(const Entity& key, uint32_t idx) {
 		_idxs.insert({ key.getID(), idx });
@@ -122,76 +109,29 @@ public:
 		return _idxs.count(ID);
 	}
 
-	std::vector<T>::iterator begin() {
+	std::unordered_map<entitySize_t, uint32_t>::const_iterator mapBegin() {
+		return _idxs.cbegin();
+	}
+
+	std::unordered_map<entitySize_t, uint32_t>::const_iterator mapIterator(entitySize_t entityID) {
+		return _idxs.find(entityID);
+	}
+
+	std::unordered_map<entitySize_t, uint32_t>::const_iterator mapIterator(const Entity& entity) {
+		return _idxs.find(entity.getID());
+	}
+
+	std::unordered_map<entitySize_t, uint32_t>::const_iterator mapEnd() {
+		return _idxs.cend();
+	}
+
+	std::vector<T>::iterator dataBegin() {
 		return _data.begin();
 	}
 
-	std::vector<T>::iterator end() {
+	std::vector<T>::iterator dataEnd() {
 		return _data.end();
 	}
 };
-
-/*
-#include "mesh.hpp"
-//TODO make _data switchback vector so idxs are consitent when removing entity
-
-template<>
-class EnitityComponents<Mesh> {
-	// key : entity id, value : idxs into _data array
-	std::unordered_map<entitySize_t, uint32_t> _idxs{};
-	std::vector<Mesh> _data{};
-public:
-
-	Mesh& get(entitySize_t id) {
-		assert(_idxs.count(id) && (_idxs[id] < _data.size()));
-		Mesh& ret = _data.at(_idxs.at(id));
-		std::cout << "GET : size of  val : " << sizeof(ret) << ", size of Mesh : " << sizeof(Mesh) << std::endl;
-		return ret;
-	}
-
-	Mesh& get(const Entity& entity) {
-		entitySize_t id = entity.getID();
-		assert(_idxs.count(id) && _idxs[id] < _data.size());
-		Mesh& ret = _data.at(_idxs.at(id));
-		std::cout << "GET : size of  val : " << sizeof(ret) << ", size of Mesh : " << sizeof(Mesh) << std::endl;
-		return ret;
-	}
-
-	//TODO use std::move to be more efficient, should be fine since idk where else we would be storing these components
-	//except for within the _data vectors
-	//returns idx into internal _data array, allows for intentional aliasing of components between entities
-	uint32_t insert(const Entity& key, const Mesh& val) {
-		std::cout << "INSERT : size of val : " << sizeof(val) << ", size of Mesh : " << sizeof(Mesh) << std::endl;
-		uint32_t idx = static_cast<uint32_t>(_data.size());
-		_idxs.insert({ key.getID(), idx });
-		_data.emplace_back(val);
-		return idx;
-	}
-
-	uint32_t insert(entitySize_t key, const Mesh& val) {
-		std::cout << "INSERT : size of val : " << sizeof(val) << ", size of Mesh : " << sizeof(Mesh) << std::endl;
-		uint32_t idx = static_cast<uint32_t>(_data.size());
-		_idxs.insert({ key, idx });
-		_data.emplace_back(val);
-		return idx;
-	}
-
-	//set entity has component from component that already exists in EntiyComponent
-	void insertExisting(const Entity& key, uint32_t idx) {
-		_idxs.insert({ key.getID(), idx });
-	}
-
-	void insertExisting(entitySize_t id, uint32_t idx) {
-		_idxs.insert({ id, idx });
-	}
-
-	bool contains(const Entity& key) {
-		return _idxs.count(key.getID());
-	}
-
-	bool contains(entitySize_t ID) {
-		return _idxs.count(ID);
-	}
-};*/
 
 

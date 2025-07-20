@@ -15,7 +15,7 @@ struct Input {
             JOYSTICK_CONNECT,
             CURSOR_MOVE,
             CURSUR_LEAVE_OR_ARRIVE,
-            SCROLL
+            SCROLL_EVENT
         };
         EventType_t type;
         //don't need scancode ?
@@ -24,7 +24,7 @@ struct Input {
             int jid; //id of joystick
             int cursorEntered;
             double xPos;
-            double xOffset; //for scroll, usually unneded 
+            double xOffset; //for scroll, usually unneeded 
         };
         union {
             int mods;
@@ -69,16 +69,27 @@ struct Input {
     enum ActionType_t : uint32_t {
         LEFT_CLICK = 0,
         RIGHT_CLICK = 1,
-        UP = 2,
-        DOWN = 3,
-        LEFT = 4,
-        RIGHT = 5,
-        CURSOR_LEFT = 6,
-        CURSUR_RIGHT = 7,
-        TYPE = 8,
-        ACCEPT = 9,
-        BACK = 10, //including backspace
-        DEBUG_CONSOLE = 11 //TODO remove ? keep as easter egg ?
+        MIDDLE_CLICK = 2,
+        SCROLL_VERTICAL = 3,
+        SCROLL_HORIZONAL = 4,
+        SHIFT = 5,
+        ALT = 6,
+        UP = 7,
+        DOWN = 8,
+        LEFT = 9,
+        RIGHT = 10,
+        CURSOR_LEFT = 11,
+        CURSUR_RIGHT = 12,
+        TYPE = 13,
+        ACCEPT = 14,
+        BACK = 15, //including backspace
+        USER_CAMERA = 16,
+        SCENE_CAMERA = 17,
+        NEXT_CAMERA = 18,
+        PREV_CAMERA = 19,
+        DEBUG_VIEW = 20,
+        DEBUG_CONSOLE = 21, //TODO remove ? keep as easter egg ?
+        MISC = 22 //all other keys not handled
     };
 
     //map from glfw inputs to actions
@@ -88,7 +99,9 @@ struct Input {
 
     //callbacks given to GLFW, just add apporpriate event to queue, which will appropriately be handled in mainLoop
     static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
+    static void cursorPosCallback(GLFWwindow* window, double xpos, double ypos);
     static void joystickCallback(int jid, int event);
     static void cursorEnterCallback(GLFWwindow* window, int entered);
     static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
+    static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
 };

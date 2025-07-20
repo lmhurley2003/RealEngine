@@ -58,6 +58,7 @@ typedef uint16_t Index;
 
 extern std::vector<Vertex> vertices;
 extern std::vector<Index> indices;
+extern Index PRIMITIVE_RESTART_IDX;
 
 //functions likely to differ between programs
 VkVertexInputBindingDescription getVertexBindingDescription();

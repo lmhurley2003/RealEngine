@@ -9,15 +9,17 @@
 
 #include "triBufferTexturedMatrixVert.cpp"
 #include "dotLightingFrag.cpp"
+#include "debugColorFrag.cpp"
 
 
 PlayMode::PlayMode() : Mode(commandLineParameters.toModeParameters()) {
 	descriptorBindings = { {{ UNIFORM_BUFFER, VERTEX_STAGE, 1, {sizeof(UniformBuffer)}, -1 }, 
 							{ COMBINED_IMAGE_SAMPLER, FRAGMENT_STAGE, 1, {LINEAR_SAMPLER}, -1 }} };
 
-	shaders = {triBufferTexturedMatrixVert, dotLightingFrag };
-	shaderSizes = { triBufferTexturedMatrixVertSize, dotLightingFragSize };
-	shaderStages = { {MAIN_RENDER, {{VERTEX_STAGE, 0}, {FRAGMENT_STAGE, 1}}} };
+	shaders = {triBufferTexturedMatrixVert, dotLightingFrag, debugColorFrag};
+	shaderSizes = { triBufferTexturedMatrixVertSize, dotLightingFragSize, debugColorFragSize};
+	shaderStages = { {MAIN_RENDER, {{VERTEX_STAGE, 0}, {FRAGMENT_STAGE, 1}}}, 
+									{DEBUG_DRAW, {{VERTEX_STAGE, 0}, {FRAGMENT_STAGE, 2}}} };
 	pushConstantRanges = { {static_cast<ShaderStageT>(VERTEX_STAGE | FRAGMENT_STAGE), 0, static_cast<uint32_t>(sizeof(PushConsants))} };
 
 
@@ -27,15 +29,116 @@ PlayMode::PlayMode() : Mode(commandLineParameters.toModeParameters()) {
 	};
 	scene = Scene(modeParameters.SCENE_NAME, modeParameters);
 	
-
+	sceneCamera = scene.renderCameraID;
+	userCamera = scene.addOrbitCamera();
 	return;
 }
 
-bool PlayMode::handleEvent(Input::Event const& event, glm::uvec2 const& window_size) {
+bool PlayMode::handleEvent(std::queue<Input::Event>& events, glm::uvec2 const& windowSize) {
+	actionsDown.fill(0.0);
+	actionsReleased.fill(0.0);
+	cursorXOffset = 0.0;
+	cursorYOffset = 0.0;
+
+	while (!events.empty()) {
+		Input::Event event = events.front();
+		if (event.type == Input::Event::KEY_DOWN) {
+			if (Input::actionMap.count(event.key)) {
+				if (actionsHeld[Input::actionMap[event.key]] == 0.0) {
+					actionsDown[Input::actionMap[event.key]] = 1;
+				}
+				actionsHeld[Input::actionMap[event.key]] += 1;
+			}
+			else {
+				if (actionsHeld[Input::MISC] == 0) actionsDown[Input::MISC] = 1;
+				actionsHeld[Input::MISC] += 1;
+			}
+		}
+		else if (event.type == Input::Event::KEY_RELEASE) {
+			if (Input::actionMap.count(event.key)) {
+				if (actionsHeld[Input::actionMap[event.key]] == 1) {
+					actionsReleased[Input::actionMap[event.key]] = 1;
+				}
+				actionsHeld[Input::actionMap[event.key]] -= 1;
+			}
+			else {
+				if (actionsHeld[Input::MISC] == 1) actionsReleased[Input::MISC] = 1;
+				actionsHeld[Input::actionMap[event.key]] -= 1;
+			}
+		}
+		else if (event.type == Input::Event::SCROLL_EVENT) {
+			actionsDown[Input::SCROLL_HORIZONAL] += event.xOffset;
+			actionsDown[Input::SCROLL_VERTICAL] += event.yOffset;
+		} //else, offset set to zero
+
+		if (event.type == Input::Event::CURSOR_MOVE) {
+			cursorXOffset += (event.xPos / static_cast<double>(windowSize.x) - cursorXPosition);
+			cursorYOffset += (event.yPos / static_cast<double>(windowSize.y) - cursorYPosition);
+			cursorXPosition = event.xPos / static_cast<double>(windowSize.x);
+			cursorYPosition = event.yPos / static_cast<double>(windowSize.y);
+		}
+		events.pop();
+	}
 	return true;
 }
 
 void PlayMode::update(float deltaTime, float totalTime) {
+	if (actionsDown[Input::DEBUG_VIEW] >= 0.9) {
+		debugViewMode = !debugViewMode;
+		scene.cullingCameraID = sceneCamera;
+	}
+
+	if (actionsDown[Input::SCENE_CAMERA] >= 0.9) {
+		scene.renderCameraID = sceneCamera;
+		scene.cullingCameraID = sceneCamera;
+	}
+	if (actionsDown[Input::USER_CAMERA] >= 0.9) {
+		scene.renderCameraID = userCamera;
+		if (debugViewMode) scene.cullingCameraID = sceneCamera;
+		else scene.cullingCameraID = scene.renderCameraID;
+	}
+
+	//only can switch to next/prev camera if we are rendering from a scene camera
+	if (actionsDown[Input::NEXT_CAMERA] >= 0.9 && sceneCamera == scene.renderCameraID) {
+		std::unordered_map<entitySize_t, uint32_t>::const_iterator sceneCameraIterator = scene.cameras.mapIterator(sceneCamera);
+		sceneCameraIterator = std::next(sceneCameraIterator);
+		if (sceneCameraIterator == scene.cameras.mapEnd()) sceneCameraIterator = scene.cameras.mapBegin();
+		sceneCamera = sceneCameraIterator->first;
+		scene.renderCameraID = sceneCamera;
+		scene.cullingCameraID = sceneCamera;
+	}
+
+	if (actionsDown[Input::PREV_CAMERA] >= 0.9 && sceneCamera == scene.renderCameraID) {
+		std::unordered_map<entitySize_t, uint32_t>::const_iterator sceneCameraIterator = scene.cameras.mapIterator(sceneCamera);
+		if (sceneCameraIterator == scene.cameras.mapBegin()) sceneCameraIterator = scene.cameras.mapEnd();
+		sceneCameraIterator = std::prev(sceneCameraIterator);
+		sceneCamera = sceneCameraIterator->first;
+		scene.renderCameraID = sceneCamera;
+		scene.cullingCameraID = sceneCamera;
+	}
+
+	if (scene.renderCameraID == userCamera && scene.orbitControls.contains(userCamera)) {
+		double scrollVertOffset = actionsDown[Input::SCROLL_VERTICAL];
+		double turnCursorHorizontal = 0.0f;
+		double turnCursorVertical = 0.0f;
+		double moveCursorHorizontal = 0.0f;
+		double moveCursorVertical = 0.0f;
+		if (actionsHeld[Input::SHIFT] >= 0.9 && ((actionsHeld[Input::LEFT_CLICK] >= 0.9 && actionsHeld[Input::ALT] >= 0.9) || actionsHeld[Input::MIDDLE_CLICK] >= 0.9)) {
+			moveCursorHorizontal = cursorXOffset;
+			moveCursorVertical = cursorYOffset;
+		}
+		else if ((actionsHeld[Input::LEFT_CLICK] >= 0.9 && actionsHeld[Input::ALT] >= 0.9) || actionsHeld[Input::MIDDLE_CLICK] >= 0.9) {
+			turnCursorHorizontal = cursorXOffset;
+			turnCursorVertical = cursorYOffset;
+		}
+
+		if (scrollVertOffset != 0.0 || turnCursorHorizontal != 0.0f || turnCursorVertical != 0.0 || moveCursorHorizontal != 0.0 || moveCursorVertical != 0.0) {
+			OrbitControl& orbit = scene.orbitControls.get(userCamera);
+			orbit.update(scrollVertOffset, turnCursorHorizontal, turnCursorVertical, moveCursorHorizontal, moveCursorVertical);
+			scene.graph.get(userCamera).transform.matchOrbitControl(orbit);
+		}
+	}
+
 	scene.updateDrivers(totalTime, modeParameters);
 }
 
@@ -47,19 +150,26 @@ void PlayMode::draw(const App& core, VkCommandBuffer commandBuffer, uint32_t ima
 	glm::mat4 cameraTransform;
 	scene.drawScene(drawParams, cameraTransform);
 	glm::mat4 view = glm::inverse(cameraTransform);
-	Camera cameraParams = scene.sceneHasCamera() ? scene.cameras.get(scene.cameraID) : Camera();
+	Camera cameraParams = scene.sceneHasCamera() ? scene.cameras.get(scene.renderCameraID) : Camera();
 	glm::mat4 proj = glm::perspective(cameraParams.vfov, cameraParams.aspect, cameraParams.nearPlane, cameraParams.farPlane);
-	glm::mat4 viewMatrix = glm::lookAt(glm::vec3(4.0f, 4.0f, 4.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-	glm::mat4 projMatrix = glm::perspective(glm::radians(45.0f), core.WIDTH / static_cast<float>(core.HEIGHT), 0.01f, 10.0f);
-	//UniformBuffer ubo = { viewMatrix, projMatrix };
-	UniformBuffer ubo = { viewMatrix, projMatrix };
+	
+	UniformBuffer ubo = { view, proj };
 	ubo.proj[1][1] *= -1; //difference between OpenGL and Vulkan
 
 	core.updateUniformBuffer(descriptorBindings[0][0].index, &ubo, sizeof(UniformBuffer));
-	//cameraTransform = 
+
 	for (const Scene::DrawParameters& drawParam : drawParams) {
 		core.updatePushConstants(commandBuffer, (ShaderStageT)(VERTEX_STAGE | FRAGMENT_STAGE), sizeof(PushConsants), 0, &drawParam.modelMat);
 		vkCmdDrawIndexed(commandBuffer, drawParam.numIndices, 1, drawParam.indicesStart, 0, 0);
+	}
+
+	//draw bounds of each mesh for debugging purposes
+	if (modeParameters.ENABLE_DEBUG_VIEW && debugViewMode) {
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, core.pipelines.at(DEBUG_DRAW));
+		for (const Scene::DrawParameters& drawParam : drawParams) {
+			core.updatePushConstants(commandBuffer, (ShaderStageT)(VERTEX_STAGE | FRAGMENT_STAGE), sizeof(PushConsants), 0, &drawParam.modelMat);
+			vkCmdDrawIndexed(commandBuffer, Mesh::DEBUG_BOUNDS_INDICES_SIZE, 1, Mesh::sharedDebugIndexOffset, Mesh::sharedDebugVertexOffset + drawParam.debugIndicesStart, 0);
+		}
 	}
 }
 
@@ -86,8 +196,8 @@ void debugHandleEvent(Input::Event const& event) {
 	case Input::Event::JOYSTICK_CONNECT:
 		std::cout << "JOYSTICK_CONNECT";
 		break;
-	case Input::Event::SCROLL:
-		std::cout << "SCROLL";
+	case Input::Event::SCROLL_EVENT:
+		std::cout << "SCROLL_EVENT";
 		break;
 	default:
 		std::cout << "SOME UNKOWN EVENT ?";

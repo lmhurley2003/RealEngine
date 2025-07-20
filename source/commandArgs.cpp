@@ -35,7 +35,8 @@ ParamMap commandLineParameters = { {
 		{"print-debug-output", false},
 		{"swapchain-mode", "mailbox"},
 		{"force-show-fps", false},
-		{"combined-vertex-index", false}
+		{"combined-vertex-index", false},
+		{"enable-debug-view", false}
 	}
 };
 
@@ -87,6 +88,7 @@ ModeConstantParameters ParamMap::toModeParameters() {
 #endif
 	modeParameters.PRINT_DEBUG_OUTPUT = getBool("print-debug-output");
 	modeParameters.DEBUG_LEVEL = getInt("debug-level");
+	modeParameters.ENABLE_DEBUG_VIEW = getBool("enable-debug-view");
 	return modeParameters;
 }
 

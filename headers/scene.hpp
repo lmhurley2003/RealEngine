@@ -13,22 +13,12 @@
 #include "light.hpp"
 #include "mesh.hpp"
 #include "animation.hpp"
-
-struct Camera {
-	enum cameraType_t: uint8_t {
-		PERSPECTIVE = 0,
-		ORTHOGRAPHIC = 1
-	};
-	float aspect = 1.77777f;
-	float vfov = 1.04719f;
-	float nearPlane = 0.1f;
-	float farPlane = 100.0f;
-	cameraType_t type = PERSPECTIVE;
-};
+#include "camera.hpp"
 
 //TODO consider saving as simple mat4 ?
 struct Transform {
-	glm::quat rotation = glm::quat(0.0f, 0.0f, 0.0f, 1.0f);
+	//quat contructor is w, x, y, z
+	glm::quat rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
 	glm::vec3 translation = glm::vec3(0.0f, 0.0f, 0.0f);
 	glm::vec3 scale = glm::vec3(1.0f, 1.0f, 1.0f);
 
@@ -38,6 +28,10 @@ struct Transform {
 	//TODO make a 4x3 matric since these transformations are affine anf thus don't need bottom row?s
 	glm::mat4 localToParent() const;
 	glm::mat4 parentToLocal() const;
+	glm::mat4 cameraLocalToParent() const;
+	glm::mat4 cameraParentToLocal() const;
+
+	void matchOrbitControl(const OrbitControl& orbit);
 
 	static glm::mat4 localToParent(glm::vec3 translation, glm::quat rotation, glm::vec3 scale);
 	static glm::mat4 parentToLocal(glm::vec3 translation, glm::quat rotation, glm::vec3 scale);
@@ -57,7 +51,8 @@ struct Scene {
 		entitySize_t sibling = std::numeric_limits<entitySize_t>().max(); 
 		entitySize_t child = std::numeric_limits<entitySize_t>().max();
 
-		SceneNode() = default; //NOTE creates new entity
+		//for some reason using default causes error with clang, but this works...
+		SceneNode() noexcept{}; //NOTE creates new entity
 		SceneNode(Transform _transform, entitySize_t _sibling, entitySize_t _child) : transform(_transform), sibling(_sibling), child(_child) {};
 
 		const bool hasSibling() const {
@@ -77,11 +72,16 @@ struct Scene {
 	EnitityComponents<SceneNode> graph{};
 	EnitityComponents<Mesh> meshes{};
 	EnitityComponents<Material> materials{};
-	entitySize_t cameraID = std::numeric_limits<entitySize_t>().max();
+	entitySize_t renderCameraID = std::numeric_limits<entitySize_t>().max();
+	entitySize_t cullingCameraID = std::numeric_limits<entitySize_t>().max();
 	bool sceneHasCamera() {
-		return cameraID != std::numeric_limits<entitySize_t>().max();
+		return renderCameraID != std::numeric_limits<entitySize_t>().max();
+	}
+	bool sceneHasFrustumCamera() {
+		return cullingCameraID != std::numeric_limits<entitySize_t>().max();
 	}
 	EnitityComponents<Camera> cameras{};
+	EnitityComponents<OrbitControl> orbitControls{};
 	EnitityComponents<Light> lights{};
 	EnitityComponents<Environment> environments{};
 	EnitityComponents<Driver> drivers{};
@@ -93,10 +93,14 @@ struct Scene {
 		glm::mat4 modelMat = glm::mat4();
 		uint32_t indicesStart = 0;
 		uint32_t numIndices = 0;
+		uint32_t debugIndicesStart = 0;
 	};
 
 	void updateDrivers(float totalElapsed, const ModeConstantParameters& parameters = ModeConstantParameters());
 	void drawScene(std::vector<DrawParameters>& drawParams, glm::mat4& cameraTransform);
+	entitySize_t addSceneNode(entitySize_t parent = std::numeric_limits<entitySize_t>().max(), SceneNode node = SceneNode());
+	entitySize_t addCamera(entitySize_t parent = std::numeric_limits<entitySize_t>().max(), const Camera& camera = Camera());
+	entitySize_t addOrbitCamera(entitySize_t parent = std::numeric_limits<entitySize_t>().max(), const OrbitControl& orbit = OrbitControl(), const Camera& camera = Camera());
 
 private:
 	enum objType : uint8_t {
@@ -138,6 +142,7 @@ private:
 	//for all else (componenets) idxs into _data components of EntityComponent arrays
 	std::unordered_map<tmpNodeIdx, uint32_t, tmpNodeIdxHasher> tempComponents{}; 
 	std::vector<std::pair<std::string, Object>> tempDrivers{};
+	std::vector<Vertex> tempDebugVertices{};
 
 	SceneNode initNode(const Object& JSONObj, const ModeConstantParameters& parameters);
 	Mesh initMesh(const Object& JSONObj, const ModeConstantParameters& parameters);

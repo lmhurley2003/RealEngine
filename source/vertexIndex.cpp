@@ -3,6 +3,7 @@
 
 std::vector<Vertex> vertices = {};
 std::vector<Index> indices = {};
+Index PRIMITIVE_RESTART_IDX = std::numeric_limits<Index>().max();
 
 #if defined(SIMPLE_VERTEX) && SIMPLE_VERTEX
 std::vector<VkVertexInputAttributeDescription> getVertexAttributeDescriptions() {

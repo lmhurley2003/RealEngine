@@ -65,10 +65,13 @@ int main(int argc, char* argv[]) {
                 glfwPollEvents();
 
                 //process user input
-                while (!Input::inputEventsQueue.empty()) {
-                    if(Mode::current) Mode::current->handleEvent(Input::inputEventsQueue.front(), {app.WIDTH, app.HEIGHT});
-                    Input::inputEventsQueue.pop();
-                }
+                  if(Mode::current) Mode::current->handleEvent(Input::inputEventsQueue, {app.WIDTH, app.HEIGHT});
+                  //in case mode doen't clear input queue, clear it manually
+                  if (!Input::inputEventsQueue.empty()) {
+                      std::queue<Input::Event> empty{};
+                      std::swap(Input::inputEventsQueue, empty);
+                  }
+  
 
                 { 
 

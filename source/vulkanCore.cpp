@@ -48,10 +48,12 @@ void App::initWindow() {
     window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
     glfwSetWindowUserPointer(window, this);
     glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
-    glfwSetKeyCallback(window, (Input::keyCallback));
+    glfwSetKeyCallback(window, Input::keyCallback);
+    glfwSetCursorPosCallback(window, Input::cursorPosCallback);
     glfwSetJoystickCallback((Input::joystickCallback));
-    glfwSetCursorEnterCallback(window, (Input::cursorEnterCallback));
-    glfwSetMouseButtonCallback(window, (Input::mouseButtonCallback));
+    glfwSetCursorEnterCallback(window, Input::cursorEnterCallback);
+    glfwSetMouseButtonCallback(window, Input::mouseButtonCallback);
+    glfwSetScrollCallback(window, Input::scrollCallback);
 }
 
 std::vector<const char*> App::getRequiredExtensions() {
@@ -923,6 +925,7 @@ void App::createGraphicsPipeline(const Mode& mode) {
     colorBlending.pAttachments = &colorBlendAttatchment;
 
     //main loop
+    [[maybe_unused]]
     static bool derivePipelines = mode.modeParameters.DERIVE_PIPELINES;
     std::vector<VkGraphicsPipelineCreateInfo> pipelineInfos{};
     pipelineInfos.reserve(mode.shaderStages.size());
@@ -937,6 +940,8 @@ void App::createGraphicsPipeline(const Mode& mode) {
     std::vector<VkVertexInputAttributeDescription> attributeDescriptions{};
 
     uint32_t i = 0;
+    std::vector<VkPipeline> pipelinesList;
+    pipelinesList.resize(mode.shaderStages.size());
     for (auto& stage : mode.shaderStages) {
         uint32_t stageIdx = i;
         for (const auto& shader : stage.shaderInfos) {
@@ -951,8 +956,8 @@ void App::createGraphicsPipeline(const Mode& mode) {
         //pipeline layout info
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         //TODO change shaderStages variable in mode.hpp to specifiy which descriptor set layouts instead of using all
-        pipelineLayoutInfo.setLayoutCount = (stage.type == MAIN_RENDER) ? descriptorSetLayouts.size() : 0;
-        pipelineLayoutInfo.pSetLayouts = (stage.type == MAIN_RENDER) ? descriptorSetLayouts.data() : nullptr;
+        pipelineLayoutInfo.setLayoutCount = descriptorSetLayouts.size();// (stage.type == MAIN_RENDER) ? descriptorSetLayouts.size() : 0;
+        pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();// (stage.type == MAIN_RENDER) ? descriptorSetLayouts.data() : nullptr;
         pipelineLayoutInfo.pushConstantRangeCount = mode.pushConstantRanges.size();
         pipelineLayoutInfo.pPushConstantRanges = mode.pushConstantRanges.size() > 0  ? reinterpret_cast<const VkPushConstantRange*>(mode.pushConstantRanges.data()) : nullptr;
 
@@ -975,7 +980,7 @@ void App::createGraphicsPipeline(const Mode& mode) {
         static bool stripify = mode.modeParameters.STRIPIFY; 
         inputAssembly.primitiveRestartEnable = ((stripify && (stage.type == MAIN_RENDER)) || (stage.type == DEBUG_DRAW)) ? VK_TRUE : VK_FALSE;
         if (stripify && stage.type == MAIN_RENDER)  inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP; //restart index is 0xFFFFFFFF
-        else if (stage.type == DEBUG_DRAW) inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP; //like tri strip, restart is 0xFFFFFFFF
+        else if (stage.type == DEBUG_DRAW) inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_STRIP; //like tri strip, restart is 0xFFFFFFFF
         else inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
         //rasterizer
@@ -986,7 +991,7 @@ void App::createGraphicsPipeline(const Mode& mode) {
         vkGetPhysicalDeviceProperties(physicalDevice, &deviceProperties);
         static float lineMin = deviceProperties.limits.lineWidthRange[0];
         static float lineMax = deviceProperties.limits.lineWidthRange[1];
-        float debugLineWidth = std::clamp(10.0f, lineMin, lineMax);
+        float debugLineWidth = std::clamp(3.0f, lineMin, lineMax);
         rasterizer.lineWidth = (stage.type == DEBUG_DRAW && deviceFeatures.wideLines) ? debugLineWidth : 1.0f;
         rasterizer.cullMode =  (stage.type == SHADOWMAP || stage.type == DEBUG_DRAW) ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT;
         rasterizer.frontFace = (stage.type == SHADOWMAP || stage.type == DEBUG_DRAW) ? VK_FRONT_FACE_CLOCKWISE : VK_FRONT_FACE_COUNTER_CLOCKWISE;
@@ -995,7 +1000,7 @@ void App::createGraphicsPipeline(const Mode& mode) {
         if (stage.type != SHADOWMAP) rasterizer.depthBiasClamp = 0.0f;
         rasterizer.depthBiasSlopeFactor = (stage.type == SHADOWMAP) ? 1.5f : 0.0f;
        
-        if (stage.type == SHADOWMAP || stage.type == MAIN_RENDER) {
+        if (stage.type == SHADOWMAP || stage.type == MAIN_RENDER || stage.type == DEBUG_DRAW) {
             depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
             depthStencil.depthTestEnable = VK_TRUE;
             depthStencil.depthWriteEnable = VK_TRUE;
@@ -1016,7 +1021,7 @@ void App::createGraphicsPipeline(const Mode& mode) {
         pipelineInfo.pViewportState = &viewportState;
         pipelineInfo.pRasterizationState = &rasterizer;
         pipelineInfo.pMultisampleState = &multisampling;
-        pipelineInfo.pDepthStencilState = ((stage.type == SHADOWMAP) || (stage.type == MAIN_RENDER)) ? &depthStencil : nullptr;
+        pipelineInfo.pDepthStencilState = &depthStencil;// ((stage.type == SHADOWMAP) || (stage.type == MAIN_RENDER)) ? &depthStencil : nullptr;
         pipelineInfo.pColorBlendState = &colorBlending;
         pipelineInfo.pDynamicState = &dynamicState;
         pipelineInfo.layout = pipelineLayout;
@@ -1024,34 +1029,38 @@ void App::createGraphicsPipeline(const Mode& mode) {
 
         pipelineInfo.subpass = 0;
 
-        if (stage.type == MAIN_RENDER && derivePipelines) {
-            pipelineInfo.flags = VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT;
-            pipelineInfos.insert(pipelineInfos.begin(), pipelineInfo);
+        if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipelinesList[i]) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create graphics pipelines!");
         }
-        else if(derivePipelines) {
-            pipelineInfo.flags = VK_PIPELINE_CREATE_DERIVATIVE_BIT;
-            pipelineInfo.basePipelineIndex = 0;
-            pipelineInfos.emplace_back(pipelineInfo);
-        }
-        else {
-            pipelineInfos.emplace_back(pipelineInfo);
-            pipelineInfo.basePipelineIndex = -1;
-            pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
-        }
+
+        //if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, static_cast<uint32_t>(pipelineInfos.size()), pipelineInfos.data(), nullptr, pipelinesList.data()) != VK_SUCCESS) {
+        //    throw std::runtime_error("Failed to create graphics pipelines!");
+        //}
+
+        //if (stage.type == MAIN_RENDER && derivePipelines) {
+        //    pipelineInfo.flags = VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT;
+        //    pipelineInfos.insert(pipelineInfos.begin(), pipelineInfo);
+        //}
+        //else if(derivePipelines) {
+        //    pipelineInfo.flags = VK_PIPELINE_CREATE_DERIVATIVE_BIT;
+        //    pipelineInfo.basePipelineIndex = 0;
+        //    pipelineInfos.emplace_back(pipelineInfo);
+        //}
+        //else {
+        //    pipelineInfos.emplace_back(pipelineInfo);
+        //    pipelineInfo.basePipelineIndex = -1;
+        //    pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
+        //}
         i++;
     }
 
-    if (DEBUG && globalParameters.DEBUG_LEVEL >= MODERATE) {
-        assert(pipelineInfos.size() == mode.shaderStages.size());
-        assert(pipelineInfos.size() == 0 || !derivePipelines || (pipelineInfos[0].flags & VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT));
-    }
+    //if (DEBUG && globalParameters.DEBUG_LEVEL >= MODERATE) {
+    //    assert(pipelineInfos.size() == mode.shaderStages.size());
+    //    assert(pipelineInfos.size() == 0 || !derivePipelines || (pipelineInfos[0].flags & VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT));
+    //}
+    //pipelinesList.resize(mode.shaderStages.size());
 
-    std::vector<VkPipeline> pipelinesList;
-    pipelinesList.resize(mode.shaderStages.size());
-    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, static_cast<uint32_t>(pipelineInfos.size()), pipelineInfos.data(), nullptr, pipelinesList.data()) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create graphics pipelines!");
-    }
-
+    
     for (size_t i = 0; i < pipelinesList.size(); i++) {
         pipelines.insert(std::make_pair(mode.shaderStages[i].type, pipelinesList[i]));
     }

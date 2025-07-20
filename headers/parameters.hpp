@@ -14,6 +14,7 @@ struct ModeConstantParameters {
 	bool DEBUG = false;
 	int DEBUG_LEVEL = 0;
 	bool PRINT_DEBUG_OUTPUT = false;
+	bool ENABLE_DEBUG_VIEW = false; //draw mesh bounds
 	ModeConstantParameters() = default;
 };
 

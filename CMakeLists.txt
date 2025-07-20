@@ -39,6 +39,7 @@ set(real_headers
     headers/material.hpp
     headers/mesh.hpp
     headers/light.hpp
+    headers/camera.hpp
     headers/scene.hpp
     headers/jsonParsing.hpp
     headers/input.hpp
@@ -55,6 +56,7 @@ set(real_source
     source/entityComponent.cpp
     source/input.cpp
     source/mesh.cpp
+    source/camera.cpp
     source/scene.cpp
     source/mode.cpp
     source/playMode.cpp
